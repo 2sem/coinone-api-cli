@@ -305,4 +305,104 @@ describe('CoinoneClient', () => {
       target_currency: 'btc'
     });
   });
+
+  it('calls the private place order endpoint with signed payload', async () => {
+    let requestUrl = '';
+    let requestInit: RequestInit | undefined;
+
+    const client = new CoinoneClient({
+      env: {
+        COINONE_ACCESS_TOKEN: 'access-token',
+        COINONE_SECRET_KEY: 'secret-key'
+      },
+      fetchImplementation: async (input, init) => {
+        requestUrl = String(input);
+        requestInit = init;
+
+        return new Response(
+          JSON.stringify({
+            result: 'success',
+            error_code: '0',
+            order_id: 'new-order-1'
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+    });
+
+    await client.placeOrder({
+      quoteCurrency: 'krw',
+      targetCurrency: 'btc',
+      side: 'buy',
+      orderType: 'limit',
+      price: '1000',
+      qty: '0.01',
+      postOnly: true,
+      userOrderId: 'client-1'
+    });
+
+    expect(requestUrl).toBe('https://api.coinone.co.kr/v2.1/order');
+    expect(requestInit?.method).toBe('POST');
+    expect(requestInit?.headers).toMatchObject({
+      'X-COINONE-PAYLOAD': expect.any(String),
+      'X-COINONE-SIGNATURE': expect.any(String)
+    });
+    expect(JSON.parse(String(requestInit?.body))).toMatchObject({
+      quote_currency: 'krw',
+      target_currency: 'btc',
+      side: 'buy',
+      order_type: 'limit',
+      price: '1000',
+      qty: '0.01',
+      post_only: true,
+      user_order_id: 'client-1',
+      access_token: 'access-token'
+    });
+  });
+
+  it('calls the private cancel order endpoint with signed payload', async () => {
+    let requestUrl = '';
+    let requestInit: RequestInit | undefined;
+
+    const client = new CoinoneClient({
+      env: {
+        COINONE_ACCESS_TOKEN: 'access-token',
+        COINONE_SECRET_KEY: 'secret-key'
+      },
+      fetchImplementation: async (input, init) => {
+        requestUrl = String(input);
+        requestInit = init;
+
+        return new Response(
+          JSON.stringify({
+            result: 'success',
+            error_code: '0',
+            order_id: 'cancel-order-1'
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+    });
+
+    await client.cancelOrder({
+      orderId: 'cancel-order-1',
+      quoteCurrency: 'krw',
+      targetCurrency: 'btc',
+      userOrderId: 'client-1'
+    });
+
+    expect(requestUrl).toBe('https://api.coinone.co.kr/v2.1/order/cancel');
+    expect(requestInit?.method).toBe('POST');
+    expect(requestInit?.headers).toMatchObject({
+      'X-COINONE-PAYLOAD': expect.any(String),
+      'X-COINONE-SIGNATURE': expect.any(String)
+    });
+    expect(JSON.parse(String(requestInit?.body))).toMatchObject({
+      order_id: 'cancel-order-1',
+      quote_currency: 'krw',
+      target_currency: 'btc',
+      user_order_id: 'client-1',
+      access_token: 'access-token'
+    });
+  });
 });

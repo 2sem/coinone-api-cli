@@ -1,6 +1,6 @@
 # coinone-api-cli
 
-A small, developer- and AI-friendly Node.js CLI for Coinone public APIs plus a safe read-only private API subset.
+A small, developer- and AI-friendly Node.js CLI for Coinone public APIs plus a guarded private API subset.
 
 It aims for familiar CLI ergonomics inspired by tools like `gh`, `httpie`, and `stripe`:
 
@@ -11,7 +11,7 @@ It aims for familiar CLI ergonomics inspired by tools like `gh`, `httpie`, and `
 - actionable error messages
 - minimal dependencies
 
-The CLI exposes public market data plus a minimal authenticated workflow for balances, fees, order lookup, and order history. Private commands are read-only and never print raw secrets.
+The CLI exposes public market data plus a minimal authenticated workflow for balances, fees, order lookup, order history, and guarded order writes. Private commands never print raw secrets, and write actions require explicit safety flags.
 
 ## Requirements
 
@@ -90,6 +90,8 @@ coinone fees list
 coinone fees get --quote <quoteCurrency> --target <targetCurrency>
 coinone orders active [--quote <quoteCurrency>] [--target <targetCurrency>] [--type <type>]
 coinone orders get <orderId> --quote <quoteCurrency> --target <targetCurrency> [--user-order-id <id>]
+coinone orders place --quote <quoteCurrency> --target <targetCurrency> --side <buy|sell> --type limit --price <string> --qty <string> [--post-only] [--user-order-id <id>] (--dry-run | --confirm live)
+coinone orders cancel --order-id <id> --quote <quoteCurrency> --target <targetCurrency> [--user-order-id <id>] --confirm live
 coinone orders completed --from <timestamp-ms|iso> --to <timestamp-ms|iso> [--size <1-100>] [--to-trade-id <id>] [--quote <quoteCurrency> --target <targetCurrency>]
 coinone ticker get <targetCurrency> --quote <quoteCurrency>
 coinone ticker list [--quote <quoteCurrency>]
@@ -121,6 +123,24 @@ coinone fees get --quote krw --target btc
 coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --json
 ```
 
+### Private order writes with safety rails
+
+WARNING: `orders place --confirm live` and `orders cancel --confirm live` can submit real account changes immediately. Prefer `--dry-run` first, verify the pair, side, price, and quantity, and only then run the live command.
+
+```bash
+# local validation only; no Coinone request is sent
+coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run
+
+# real submission; requires explicit confirmation
+coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --confirm live
+
+# optional post-only limit order
+coinone orders place --quote krw --target btc --side sell --type limit --price 1200 --qty 0.01 --post-only --confirm live
+
+# real cancellation; live-only in the MVP
+coinone orders cancel --order-id 12345 --quote krw --target btc --confirm live
+```
+
 ### Script-friendly examples
 
 ```bash
@@ -150,6 +170,9 @@ coinone --output raw ticker get btc --quote krw
 - `trades list --size`: one of `10`, `50`, `100`, `150`, `200`
 - `orders completed --from/--to`: UTC millisecond timestamps or ISO-8601 values
 - `orders completed`: max time window is `90` days and `--quote`/`--target` must be passed together
+- `orders place`: only `--type limit` is supported in the MVP
+- `orders place`: exactly one of `--dry-run` or `--confirm live` is required
+- `orders cancel`: `--confirm live` is always required in the MVP
 
 Examples:
 
@@ -162,6 +185,9 @@ coinone fees list
 coinone fees get --quote krw --target btc
 coinone orders active --quote krw --target btc --type limit
 coinone orders get 12345 --quote krw --target btc
+coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run
+coinone orders place --quote krw --target btc --side sell --type limit --price 1200 --qty 0.01 --post-only --confirm live
+coinone orders cancel --order-id 12345 --quote krw --target btc --confirm live
 coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z
 coinone orders completed --from 1735689600000 --to 1736294400000 --quote krw --target btc --json
 coinone --timeout 15000 ticker get btc --quote krw --json
@@ -200,6 +226,9 @@ Safety notes:
 - `coinone auth status` only validates local env configuration; it does not need to call Coinone
 - secrets are never echoed in CLI output, examples, or normalized JSON
 - prefer shell env vars or a local secret manager; do not put secrets directly in command history
+- `coinone orders place` requires either `--dry-run` or `--confirm live`
+- `coinone orders cancel` is live-only and always requires `--confirm live`
+- run a dry run before any live order placement whenever possible
 
 Private fee examples:
 
@@ -230,6 +259,8 @@ coinone fees get --quote krw --target btc --json
   - `/v2.1/account/trade_fee`
   - `/v2.1/account/trade_fee/{quote_currency}/{target_currency}`
   - `/v2.1/order/active_orders`
+  - `/v2.1/order`
+  - `/v2.1/order/cancel`
   - `/v2.1/order/detail`
   - `/v2.1/order/completed_orders/all`
   - `/v2.1/order/completed_orders`
