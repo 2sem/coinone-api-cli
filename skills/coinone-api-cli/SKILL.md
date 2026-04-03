@@ -9,6 +9,7 @@ Use this skill when the user wants to work with Coinone data through the CLI in 
 
 Activate this skill when the user wants to:
 
+- diagnose a global install or runtime setup problem with the CLI
 - call Coinone public APIs from the command line
 - inspect safe read-only private API data with env-based auth
 - script Coinone queries for developers or AI agents
@@ -42,9 +43,10 @@ Use commands in this order:
 
 For first contact or troubleshooting, probe in this order:
 
-1. `npm run cli -- --help`
-2. `npm run cli -- markets list --json`
-3. `npm run cli -- auth status --json`
+1. `npm run cli -- doctor --json`
+2. `npm run cli -- --help`
+3. `npm run cli -- markets list --json`
+4. `npm run cli -- auth status --json`
 
 ## Core Usage Rules
 
@@ -59,6 +61,10 @@ For first contact or troubleshooting, probe in this order:
 - Do not parse human table output if `--json` is available.
 
 ## Supported Command Surface
+
+### Local diagnostics
+
+- `coinone doctor`
 
 ### Public
 
@@ -98,7 +104,16 @@ npm run cli -- orderbook get btc --quote krw --size 10 --json
 ```bash
 export COINONE_ACCESS_TOKEN="your-access-token"
 export COINONE_SECRET_KEY="your-secret-key"
+npm run cli -- doctor --json
 npm run cli -- auth status --json
+```
+
+### Install and runtime diagnostics
+
+```bash
+npm run cli -- doctor
+npm run cli -- doctor --json
+coinone doctor --json
 ```
 
 ### Private read-only examples
@@ -123,6 +138,7 @@ coinone --help
 - `--output raw` is useful when debugging upstream Coinone payloads
 - prefer normalized JSON fields over reverse-engineering Coinone raw payloads unless the task specifically requires raw output
 - if a downstream step needs reliable parsing, rerun the command with `--json`
+- for install/runtime debugging, use `coinone doctor --json` first because it does not require network access in the MVP
 
 ## Safety and Validation
 
@@ -137,8 +153,13 @@ coinone --help
 ## Common Failure Cases
 
 - Missing private env vars:
-  - run `npm run cli -- auth status --json`
+  - run `npm run cli -- doctor --json`
+  - or `npm run cli -- auth status --json`
   - expect missing `COINONE_ACCESS_TOKEN` and/or `COINONE_SECRET_KEY`
+- Global install works but `coinone` is not found:
+  - compare `npm bin -g` with your shell `PATH`
+  - use `coinone doctor` once the binary is reachable
+  - remember that npm global bin paths vary across nvm, Homebrew, fnm, Volta, and system Node installs
 - Timeout/network failures:
   - retry with `--timeout <ms>` adjusted upward
   - check network reachability to the Coinone API

@@ -15,6 +15,56 @@ function createWritable() {
 }
 
 describe('runCli', () => {
+  it('prints doctor output in json mode without exposing secret values', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(['node', 'coinone', 'doctor', '--json'], {
+      env: {
+        COINONE_ACCESS_TOKEN: 'token-value',
+        COINONE_SECRET_KEY: 'secret-value'
+      },
+      stdout,
+      stderr,
+      argv: ['/opt/homebrew/bin/node', '/usr/local/bin/coinone', 'doctor', '--json'],
+      cwd: '/tmp/coinone-doctor',
+      execPath: '/opt/homebrew/bin/node'
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(stdout.read()).toContain('"cliVersion": "1.0.0"');
+    expect(stdout.read()).toContain('"nodeExecutablePath": "/opt/homebrew/bin/node"');
+    expect(stdout.read()).toContain('"cliExecutablePath": "/usr/local/bin/coinone"');
+    expect(stdout.read()).toContain('"currentWorkingDirectory": "/tmp/coinone-doctor"');
+    expect(stdout.read()).toContain('"privateAuthConfigured": true');
+    expect(stdout.read()).not.toContain('token-value');
+    expect(stdout.read()).not.toContain('secret-value');
+  });
+
+  it('prints doctor output in table mode without failing when auth is missing', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(['node', 'coinone', 'doctor'], {
+      env: {},
+      stdout,
+      stderr,
+      argv: ['/opt/homebrew/bin/node', '/usr/local/bin/coinone', 'doctor'],
+      cwd: '/tmp/coinone-doctor',
+      execPath: '/opt/homebrew/bin/node'
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(stdout.read()).toContain('COINONE_ACCESS_TOKEN set');
+    expect(stdout.read()).toContain('Private auth configured');
+    expect(stdout.read()).toContain('needs-auth');
+    expect(stdout.read()).toContain('CLI runtime looks healthy, but private auth is not fully configured yet.');
+    expect(stdout.read()).toContain('COINONE_ACCESS_TOKEN');
+    expect(stdout.read()).toContain('COINONE_SECRET_KEY');
+  });
+
   it('prints command output in json mode', async () => {
     const stdout = createWritable();
     const stderr = createWritable();
@@ -656,6 +706,7 @@ describe('runCli', () => {
     const cli = createCli();
     const helpText = cli.helpInformation();
 
+    expect(helpText).toContain('doctor');
     expect(helpText).toContain('--base-url <url>');
     expect(helpText).toContain('--timeout <ms>');
   });

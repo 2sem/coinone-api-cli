@@ -34,6 +34,7 @@ npm install
 npm run build
 npm install -g .
 coinone --help
+coinone doctor
 ```
 
 ### Local package smoke test before sharing
@@ -53,6 +54,7 @@ Once this repo is hosted on GitHub or another Git server, you can install it dir
 ```bash
 npm install -g <git-url>
 coinone --help
+coinone doctor --json
 ```
 
 Examples:
@@ -67,6 +69,25 @@ You can also run the built local binary directly:
 ```bash
 node dist/bin/coinone.js --help
 ```
+
+### Installed CLI troubleshooting
+
+If `npm install -g` succeeds but `coinone` is still not found, the problem is usually your shell environment rather than the package itself.
+
+- the global npm bin directory is environment-dependent and may not already be on `PATH`
+- Git-based global installs still depend on your local Node.js and npm global bin setup
+- opening a new shell session can be required after changing shell profile files
+
+Useful checks:
+
+```bash
+npm bin -g
+npm prefix -g
+coinone doctor
+coinone doctor --json
+```
+
+If the command is missing after `npm install -g`, compare the directory from `npm bin -g` with your current `PATH` and add it in your shell profile if needed. For example, Homebrew, nvm, fnm, Volta, and system Node installs often use different global bin locations.
 
 ## Update
 
@@ -108,6 +129,7 @@ coinone --version
 ```text
 coinone markets list
 coinone markets get <targetCurrency> --quote <quoteCurrency>
+coinone doctor
 coinone auth status
 coinone balances list
 coinone balances get <currency>
@@ -144,6 +166,7 @@ coinone orderbook get btc --quote krw --size 10
 export COINONE_ACCESS_TOKEN="your-access-token"
 export COINONE_SECRET_KEY="your-secret-key"
 
+coinone doctor
 coinone auth status
 coinone balances list
 coinone fees get --quote krw --target btc
@@ -171,6 +194,8 @@ coinone orders cancel --order-id 12345 --quote krw --target btc --confirm live
 ### Script-friendly examples
 
 ```bash
+coinone doctor
+coinone doctor --json
 coinone --json ticker get btc --quote krw
 coinone --timeout 10000 ticker list --quote krw --json
 coinone --base-url http://127.0.0.1:4010 --json markets get btc --quote krw
@@ -204,6 +229,8 @@ coinone --output raw ticker get btc --quote krw
 Examples:
 
 ```bash
+coinone doctor
+coinone doctor --json
 coinone markets list
 coinone auth status
 coinone balances list --json
@@ -238,6 +265,7 @@ Setup example:
 ```bash
 export COINONE_ACCESS_TOKEN="your-access-token"
 export COINONE_SECRET_KEY="your-secret-key"
+coinone doctor
 coinone auth status
 ```
 
@@ -250,6 +278,7 @@ Signing behavior for private commands:
 
 Safety notes:
 
+- `coinone doctor` is local-only install and env diagnostics; it never needs network access for the MVP
 - `coinone auth status` only validates local env configuration; it does not need to call Coinone
 - secrets are never echoed in CLI output, examples, or normalized JSON
 - prefer shell env vars or a local secret manager; do not put secrets directly in command history
