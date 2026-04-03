@@ -156,6 +156,16 @@ export interface TradeFeesResponse extends CoinoneEnvelope, JsonRecord {
   fee_rates?: TradeFeeEntry[] | Record<string, TradeFeeEntry | string | number | undefined>;
 }
 
+export interface TradeFeeResponse extends CoinoneEnvelope, JsonRecord {
+  quote_currency?: string;
+  target_currency?: string;
+  fee?: TradeFeeEntry;
+  trade_fee?: TradeFeeEntry;
+  fee_rate?: string;
+  maker_fee_rate?: string;
+  taker_fee_rate?: string;
+}
+
 export interface ActiveOrderEntry extends JsonRecord {
   order_id?: string;
   quote_currency?: string;

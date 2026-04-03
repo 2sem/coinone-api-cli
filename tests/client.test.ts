@@ -134,6 +134,41 @@ describe('CoinoneClient', () => {
     });
   });
 
+  it('calls the pair-specific trade fee endpoint with signed private auth', async () => {
+    let requestUrl = '';
+    let requestInit: RequestInit | undefined;
+
+    const client = new CoinoneClient({
+      env: {
+        COINONE_ACCESS_TOKEN: 'access-token',
+        COINONE_SECRET_KEY: 'secret-key'
+      },
+      fetchImplementation: async (input, init) => {
+        requestUrl = String(input);
+        requestInit = init;
+
+        return new Response(
+          JSON.stringify({
+            result: 'success',
+            error_code: '0',
+            quote_currency: 'krw',
+            target_currency: 'btc',
+            fee_rate: '0.002'
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+    });
+
+    await client.getTradeFee('krw', 'btc');
+
+    expect(requestUrl).toBe('https://api.coinone.co.kr/v2.1/account/trade_fee/krw/btc');
+    expect(requestInit?.method).toBe('POST');
+    expect(JSON.parse(String(requestInit?.body))).toMatchObject({
+      access_token: 'access-token'
+    });
+  });
+
   it('calls the all-pairs completed orders endpoint without pair filters', async () => {
     let requestUrl = '';
     let requestInit: RequestInit | undefined;

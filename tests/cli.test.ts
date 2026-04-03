@@ -234,6 +234,41 @@ describe('runCli', () => {
     expect(stdout.read()).toContain('"pair": "BTC/KRW"');
   });
 
+  it('prints pair-specific trade fee in json mode', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      ['node', 'coinone', '--json', 'fees', 'get', '--quote', 'krw', '--target', 'btc'],
+      {
+        env: {
+          COINONE_ACCESS_TOKEN: 'token',
+          COINONE_SECRET_KEY: 'secret'
+        },
+        stdout,
+        stderr,
+        fetchImplementation: async () =>
+          new Response(
+            JSON.stringify({
+              result: 'success',
+              error_code: '0',
+              quote_currency: 'krw',
+              target_currency: 'btc',
+              fee_rate: '0.002',
+              maker_fee_rate: '0.001',
+              taker_fee_rate: '0.002'
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(stdout.read()).toContain('"pair": "BTC/KRW"');
+    expect(stdout.read()).toContain('"feeRate": "0.002"');
+  });
+
   it('returns a clear error for incomplete completed order pair filters', async () => {
     const stdout = createWritable();
     const stderr = createWritable();
@@ -279,5 +314,16 @@ describe('runCli', () => {
     expect(helpText).toContain('--from <timestampMsOrIso>');
     expect(helpText).toContain('--to <timestampMsOrIso>');
     expect(helpText).toContain('List completed orders for a time window');
+  });
+
+  it('shows clear help for pair-specific fees', async () => {
+    const cli = createCli();
+    const feesCommand = cli.commands.find((command) => command.name() === 'fees');
+    const getCommand = feesCommand?.commands.find((command) => command.name() === 'get');
+    const helpText = getCommand?.helpInformation() ?? '';
+
+    expect(helpText).toContain('--quote <quoteCurrency>');
+    expect(helpText).toContain('--target <targetCurrency>');
+    expect(helpText).toContain('Get trade fee for one market pair');
   });
 });

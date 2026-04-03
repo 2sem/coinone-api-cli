@@ -1,13 +1,23 @@
 import { Command } from 'commander';
 
 import type { CoinoneClient } from '../lib/client.js';
-import { renderTable, toCode } from '../lib/formatters.js';
-import type { CommandResult, EmitResult, JsonRecord, TradeFeeEntry, TradeFeesResponse } from '../lib/types.js';
+import { marketPair, renderKeyValueTable, renderTable, toCode } from '../lib/formatters.js';
+import type {
+  CommandResult,
+  EmitResult,
+  JsonRecord,
+  TradeFeeEntry,
+  TradeFeeResponse,
+  TradeFeesResponse
+} from '../lib/types.js';
 
 export function createFeesCommand(client: CoinoneClient, emitResult: EmitResult): Command {
   const command = new Command('fees')
     .description('Query authenticated trade fee data')
-    .addHelpText('after', `\nExamples:\n  coinone fees list\n  coinone fees list --json\n`);
+    .addHelpText(
+      'after',
+      `\nExamples:\n  coinone fees list\n  coinone fees get --quote krw --target btc\n  coinone fees list --json\n`
+    );
 
   command
     .command('list')
@@ -18,11 +28,38 @@ export function createFeesCommand(client: CoinoneClient, emitResult: EmitResult)
       emitResult(this, buildFeeListResult(normalizeFeeEntries(response), response));
     });
 
+  command
+    .command('get')
+    .requiredOption('--quote <quoteCurrency>', 'Quote currency, for example KRW')
+    .requiredOption('--target <targetCurrency>', 'Target currency, for example BTC')
+    .description('Get trade fee for one market pair')
+    .addHelpText(
+      'after',
+      `\nExamples:\n  coinone fees get --quote krw --target btc\n  coinone fees get --quote usdt --target eth --json\n`
+    )
+    .action(async function (options: { quote: string; target: string }) {
+      const response = await client.getTradeFee(
+        options.quote.toLowerCase(),
+        options.target.toLowerCase()
+      );
+      const fee = normalizeTradeFee(response, options.quote, options.target);
+      emitResult(this, buildFeeGetResult(fee, response));
+    });
+
   return command;
 }
 
 interface NormalizedFee {
   currency: string;
+  feeRate?: string;
+  makerFeeRate?: string;
+  takerFeeRate?: string;
+}
+
+interface NormalizedTradeFee {
+  pair: string;
+  quoteCurrency: string;
+  targetCurrency: string;
   feeRate?: string;
   makerFeeRate?: string;
   takerFeeRate?: string;
@@ -38,6 +75,25 @@ function buildFeeListResult(fees: NormalizedFee[], raw: unknown): CommandResult<
         { key: 'feeRate', label: 'FEE RATE' },
         { key: 'makerFeeRate', label: 'MAKER' },
         { key: 'takerFeeRate', label: 'TAKER' }
+      ])
+  };
+}
+
+function buildFeeGetResult(
+  fee: NormalizedTradeFee,
+  raw: unknown
+): CommandResult<NormalizedTradeFee> {
+  return {
+    data: fee,
+    raw,
+    renderTable: () =>
+      renderKeyValueTable([
+        { field: 'Pair', value: fee.pair },
+        { field: 'Quote currency', value: fee.quoteCurrency },
+        { field: 'Target currency', value: fee.targetCurrency },
+        { field: 'Fee rate', value: fee.feeRate },
+        { field: 'Maker fee rate', value: fee.makerFeeRate },
+        { field: 'Taker fee rate', value: fee.takerFeeRate }
       ])
   };
 }
@@ -81,6 +137,35 @@ function normalizeFeeEntry(entry: TradeFeeEntry | JsonRecord): NormalizedFee | u
     makerFeeRate: readString(entry.maker_fee_rate) ?? readString(entry.makerFeeRate),
     takerFeeRate: readString(entry.taker_fee_rate) ?? readString(entry.takerFeeRate)
   };
+}
+
+function normalizeTradeFee(
+  response: TradeFeeResponse,
+  defaultQuoteCurrency: string,
+  defaultTargetCurrency: string
+): NormalizedTradeFee {
+  const nested = readTradeFeeRecord(response.fee) ?? readTradeFeeRecord(response.trade_fee) ?? {};
+  const quoteCurrency =
+    readString(response.quote_currency) ??
+    readString(nested.quote_currency) ??
+    defaultQuoteCurrency;
+  const targetCurrency =
+    readString(response.target_currency) ??
+    readString(nested.target_currency) ??
+    defaultTargetCurrency;
+
+  return {
+    pair: marketPair(targetCurrency, quoteCurrency),
+    quoteCurrency: toCode(quoteCurrency),
+    targetCurrency: toCode(targetCurrency),
+    feeRate: readString(response.fee_rate) ?? readString(nested.fee_rate),
+    makerFeeRate: readString(response.maker_fee_rate) ?? readString(nested.maker_fee_rate),
+    takerFeeRate: readString(response.taker_fee_rate) ?? readString(nested.taker_fee_rate)
+  };
+}
+
+function readTradeFeeRecord(value: unknown): TradeFeeEntry | undefined {
+  return isRecord(value) ? value : undefined;
 }
 
 function isRecord(value: unknown): value is JsonRecord {

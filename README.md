@@ -47,6 +47,7 @@ coinone balances get <currency>
 coinone currencies list
 coinone currencies get <currency>
 coinone fees list
+coinone fees get --quote <quoteCurrency> --target <targetCurrency>
 coinone orders active [--quote <quoteCurrency>] [--target <targetCurrency>] [--type <type>]
 coinone orders get <orderId> --quote <quoteCurrency> --target <targetCurrency> [--user-order-id <id>]
 coinone orders completed --from <timestamp-ms|iso> --to <timestamp-ms|iso> [--size <1-100>] [--to-trade-id <id>] [--quote <quoteCurrency> --target <targetCurrency>]
@@ -76,6 +77,7 @@ coinone auth status
 coinone balances list --json
 coinone balances get btc
 coinone fees list
+coinone fees get --quote krw --target btc
 coinone orders active --quote krw --target btc --type limit
 coinone orders get 12345 --quote krw --target btc
 coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z
@@ -115,6 +117,14 @@ Safety notes:
 - secrets are never echoed in CLI output, examples, or normalized JSON
 - prefer shell env vars or a local secret manager; do not put secrets directly in command history
 
+Private fee examples:
+
+```bash
+coinone fees list
+coinone fees get --quote krw --target btc
+coinone fees get --quote krw --target btc --json
+```
+
 ## Notes and assumptions
 
 - `markets list` defaults to the `KRW` market because the public API requires a quote currency in the path while the requested CLI shape omits it.
@@ -134,6 +144,7 @@ Safety notes:
   - `/v2.1/account/balance/all`
   - `/v2.1/account/balance`
   - `/v2.1/account/trade_fee`
+  - `/v2.1/account/trade_fee/{quote_currency}/{target_currency}`
   - `/v2.1/order/active_orders`
   - `/v2.1/order/detail`
   - `/v2.1/order/completed_orders/all`

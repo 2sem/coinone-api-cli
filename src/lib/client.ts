@@ -12,6 +12,7 @@ import type {
   OrderDetailResponse,
   PrivateAuthEnv,
   RangeUnitsResponse,
+  TradeFeeResponse,
   TradeFeesResponse,
   TickersResponse,
   TradesResponse
@@ -160,6 +161,12 @@ export class CoinoneClient {
 
   async listTradeFees(): Promise<TradeFeesResponse> {
     return this.postPrivateJson<TradeFeesResponse>('/v2.1/account/trade_fee');
+  }
+
+  async getTradeFee(quoteCurrency: string, targetCurrency: string): Promise<TradeFeeResponse> {
+    return this.postPrivateJson<TradeFeeResponse>(
+      `/v2.1/account/trade_fee/${quoteCurrency}/${targetCurrency}`
+    );
   }
 
   async listActiveOrders(filters: {
