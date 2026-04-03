@@ -57,6 +57,8 @@ coinone --help
 coinone doctor --json
 ```
 
+Git-based installs build the CLI automatically during npm's `prepare` step, so you do not need to run `npm run build` first when installing directly from the repository.
+
 Examples:
 
 ```bash
