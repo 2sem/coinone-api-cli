@@ -1,6 +1,6 @@
 {
   "name": "coinone-api-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Developer-friendly CLI for Coinone public APIs.",
   "type": "module",
   "bin": {
