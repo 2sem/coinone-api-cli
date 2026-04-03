@@ -36,7 +36,7 @@ npm install -g .
 coinone --help
 ```
 
-### Local package smoke test before publishing
+### Local package smoke test before sharing
 
 ```bash
 npm test
@@ -46,14 +46,20 @@ npm pack --dry-run
 
 The GitHub Actions CI job runs the same release-readiness checks on every `push` and `pull_request`.
 
-`prepublishOnly` runs `npm run build && npm test`, so `npm publish` fails fast if the package is not ready.
+### Install directly from a Git repository
 
-### npx-style usage
-
-If the package is published to npm, you can run it without a global install:
+Once this repo is hosted on GitHub or another Git server, you can install it directly without npm publishing:
 
 ```bash
-npx coinone-api-cli@latest --help
+npm install -g <git-url>
+coinone --help
+```
+
+Examples:
+
+```bash
+npm install -g git+https://github.com/<owner>/coinone-api-cli.git
+npm install -g git+ssh://git@github.com/<owner>/coinone-api-cli.git
 ```
 
 You can also run the built local binary directly:
@@ -234,6 +240,7 @@ coinone fees get --quote krw --target btc --json
 - use `--timeout <ms>` in CI or agent loops to fail fast on slow requests
 - use `--base-url <url>` for mocked APIs, replay servers, or local integration tests
 - keep private credentials in environment variables instead of inline flags or prompts
+- for team-wide sharing, prefer Git-based installation over npm package publishing if you do not want to manage an npm package
 
 Examples:
 
