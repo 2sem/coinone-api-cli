@@ -19,6 +19,14 @@ The CLI exposes public market data plus a minimal authenticated workflow for bal
 
 ## Install
 
+### Install from npm (recommended)
+
+```bash
+npm install -g coinone-api-cli
+coinone --help
+coinone doctor --json
+```
+
 ### Local development install
 
 ```bash
@@ -49,15 +57,15 @@ The GitHub Actions CI job runs the same release-readiness checks on every `push`
 
 ### Install directly from a Git repository
 
-Once this repo is hosted on GitHub or another Git server, you can install it directly without npm publishing:
+This is a fallback path if you specifically want to install from source instead of npm:
 
 ```bash
-npm install -g <git-url>
+npm install -g git+https://github.com/2sem/coinone-api-cli.git
 coinone --help
 coinone doctor --json
 ```
 
-Git-based installs ship with the built `dist/` output in the repository, so you do not need local TypeScript tooling or a manual `npm run build` step before `npm install -g git+https://github.com/2sem/coinone-api-cli.git`.
+Git-based installs ship with the built `dist/` output in the repository, so you do not need local TypeScript tooling or a manual `npm run build` step first.
 
 Examples:
 
@@ -92,6 +100,14 @@ coinone doctor --json
 If the command is missing after `npm install -g`, compare the directory from `npm bin -g` with your current `PATH` and add it in your shell profile if needed. For example, Homebrew, nvm, fnm, Volta, and system Node installs often use different global bin locations.
 
 ## Update
+
+### If you installed from npm (recommended)
+
+Reinstall the latest published package:
+
+```bash
+npm install -g coinone-api-cli
+```
 
 ### If you installed from the Git repository
 
