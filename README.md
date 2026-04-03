@@ -58,8 +58,8 @@ coinone --help
 Examples:
 
 ```bash
-npm install -g git+https://github.com/<owner>/coinone-api-cli.git
-npm install -g git+ssh://git@github.com/<owner>/coinone-api-cli.git
+npm install -g git+https://github.com/2sem/coinone-api-cli.git
+npm install -g git+ssh://git@github.com/2sem/coinone-api-cli.git
 ```
 
 You can also run the built local binary directly:
