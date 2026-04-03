@@ -305,6 +305,320 @@ describe('runCli', () => {
     expect(stderr.read()).toContain('Pass both `--quote` and `--target`');
   });
 
+  it('validates order placement locally in dry-run mode without calling fetch', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+    let fetchCalled = false;
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        '--json',
+        'orders',
+        'place',
+        '--quote',
+        'krw',
+        '--target',
+        'btc',
+        '--side',
+        'buy',
+        '--type',
+        'limit',
+        '--price',
+        '1000',
+        '--qty',
+        '0.01',
+        '--dry-run'
+      ],
+      {
+        stdout,
+        stderr,
+        fetchImplementation: async () => {
+          fetchCalled = true;
+          throw new Error('should not be called');
+        }
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(fetchCalled).toBe(false);
+    expect(stderr.read()).toBe('');
+    expect(stdout.read()).toContain('"action": "place"');
+    expect(stdout.read()).toContain('"dryRun": true');
+    expect(stdout.read()).toContain('"submitted": false');
+    expect(stdout.read()).toContain('"validation": "passed"');
+  });
+
+  it('requires an explicit safety mode for order placement', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        'orders',
+        'place',
+        '--quote',
+        'krw',
+        '--target',
+        'btc',
+        '--side',
+        'buy',
+        '--type',
+        'limit',
+        '--price',
+        '1000',
+        '--qty',
+        '0.01'
+      ],
+      {
+        stdout,
+        stderr,
+        fetchImplementation: async () => {
+          throw new Error('should not be called');
+        }
+      }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.read()).toBe('');
+    expect(stderr.read()).toContain('Missing required safety mode for `orders place`');
+    expect(stderr.read()).toContain('Use `--dry-run` for local validation or `--confirm live`');
+  });
+
+  it('rejects conflicting order placement safety flags', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        'orders',
+        'place',
+        '--quote',
+        'krw',
+        '--target',
+        'btc',
+        '--side',
+        'buy',
+        '--type',
+        'limit',
+        '--price',
+        '1000',
+        '--qty',
+        '0.01',
+        '--dry-run',
+        '--confirm',
+        'live'
+      ],
+      {
+        stdout,
+        stderr,
+        fetchImplementation: async () => {
+          throw new Error('should not be called');
+        }
+      }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.read()).toBe('');
+    expect(stderr.read()).toContain('Choose exactly one safety mode for `orders place`');
+  });
+
+  it('rejects non-limit order placement requests', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        'orders',
+        'place',
+        '--quote',
+        'krw',
+        '--target',
+        'btc',
+        '--side',
+        'buy',
+        '--type',
+        'market',
+        '--price',
+        '1000',
+        '--qty',
+        '0.01',
+        '--dry-run'
+      ],
+      {
+        stdout,
+        stderr,
+        fetchImplementation: async () => {
+          throw new Error('should not be called');
+        }
+      }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.read()).toBe('');
+    expect(stderr.read()).toContain('Only limit orders are supported');
+  });
+
+  it('requires explicit live confirmation for order cancellation', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        'orders',
+        'cancel',
+        '--order-id',
+        '12345',
+        '--quote',
+        'krw',
+        '--target',
+        'btc'
+      ],
+      {
+        env: {
+          COINONE_ACCESS_TOKEN: 'token',
+          COINONE_SECRET_KEY: 'secret'
+        },
+        stdout,
+        stderr,
+        fetchImplementation: async () => {
+          throw new Error('should not be called');
+        }
+      }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.read()).toBe('');
+    expect(stderr.read()).toContain('required live confirmation');
+  });
+
+  it('prints successful live order placement in json mode', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        '--json',
+        'orders',
+        'place',
+        '--quote',
+        'krw',
+        '--target',
+        'btc',
+        '--side',
+        'buy',
+        '--type',
+        'limit',
+        '--price',
+        '1000',
+        '--qty',
+        '0.01',
+        '--post-only',
+        '--confirm',
+        'live'
+      ],
+      {
+        env: {
+          COINONE_ACCESS_TOKEN: 'token',
+          COINONE_SECRET_KEY: 'secret'
+        },
+        stdout,
+        stderr,
+        fetchImplementation: async () =>
+          new Response(
+            JSON.stringify({
+              result: 'success',
+              error_code: '0',
+              order_id: 'new-order-1',
+              quote_currency: 'krw',
+              target_currency: 'btc',
+              side: 'buy',
+              order_type: 'limit',
+              price: '1000',
+              qty: '0.01',
+              post_only: true,
+              user_order_id: 'client-1',
+              submitted_at: 1767225600000
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(stdout.read()).toContain('"action": "place"');
+    expect(stdout.read()).toContain('"submitted": true');
+    expect(stdout.read()).toContain('"orderId": "new-order-1"');
+    expect(stdout.read()).toContain('"postOnly": true');
+    expect(stdout.read()).toContain('"submittedAt": "2026-01-01T00:00:00.000Z"');
+  });
+
+  it('prints successful live order cancellation in json mode', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        '--json',
+        'orders',
+        'cancel',
+        '--order-id',
+        '12345',
+        '--quote',
+        'krw',
+        '--target',
+        'btc',
+        '--confirm',
+        'live'
+      ],
+      {
+        env: {
+          COINONE_ACCESS_TOKEN: 'token',
+          COINONE_SECRET_KEY: 'secret'
+        },
+        stdout,
+        stderr,
+        fetchImplementation: async () =>
+          new Response(
+            JSON.stringify({
+              result: 'success',
+              error_code: '0',
+              order_id: '12345',
+              quote_currency: 'krw',
+              target_currency: 'btc',
+              status: 'canceled',
+              canceled_at: 1767225600000,
+              canceled_qty: '0.01',
+              remain_qty: '0'
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(stdout.read()).toContain('"action": "cancel"');
+    expect(stdout.read()).toContain('"submitted": true');
+    expect(stdout.read()).toContain('"orderId": "12345"');
+    expect(stdout.read()).toContain('"status": "canceled"');
+    expect(stdout.read()).toContain('"canceledQty": "0.01"');
+  });
+
   it('shows clear help for completed orders', async () => {
     const cli = createCli();
     const ordersCommand = cli.commands.find((command) => command.name() === 'orders');
@@ -325,6 +639,17 @@ describe('runCli', () => {
     expect(helpText).toContain('--quote <quoteCurrency>');
     expect(helpText).toContain('--target <targetCurrency>');
     expect(helpText).toContain('Get trade fee for one market pair');
+  });
+
+  it('shows clear help for guarded order placement', async () => {
+    const cli = createCli();
+    const ordersCommand = cli.commands.find((command) => command.name() === 'orders');
+    const placeCommand = ordersCommand?.commands.find((command) => command.name() === 'place');
+    const helpText = placeCommand?.helpInformation() ?? '';
+
+    expect(helpText).toContain('--dry-run');
+    expect(helpText).toContain('--confirm <mode>');
+    expect(helpText).toContain('Place a guarded private limit order');
   });
 
   it('shows global base-url and timeout options in help', async () => {

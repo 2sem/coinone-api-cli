@@ -7,13 +7,15 @@ import { validateTimeWindow } from '../lib/time.js';
 import type {
   ActiveOrderEntry,
   ActiveOrdersResponse,
+  CancelOrderResponse,
   CommandResult,
   CompletedOrderEntry,
   CompletedOrdersResponse,
   EmitResult,
   JsonRecord,
   OrderDetailEntry,
-  OrderDetailResponse
+  OrderDetailResponse,
+  PlaceOrderResponse
 } from '../lib/types.js';
 
 function collectValues(value: string, previous: string[]): string[] {
@@ -64,9 +66,71 @@ function requireOption(value: string | undefined, flagName: string): string {
   return value;
 }
 
+function normalizeTradingSide(value: string): 'buy' | 'sell' {
+  const side = value.toLowerCase();
+
+  if (side !== 'buy' && side !== 'sell') {
+    throw new CoinoneCliError('Invalid order side.', {
+      causeHint: 'Use `--side buy` or `--side sell`.'
+    });
+  }
+
+  return side;
+}
+
+function normalizeLimitOrderType(value: string): 'limit' {
+  const orderType = value.toLowerCase();
+
+  if (orderType !== 'limit') {
+    throw new CoinoneCliError('Only limit orders are supported for `coinone orders place` in this MVP.', {
+      causeHint: 'Pass `--type limit`.'
+    });
+  }
+
+  return orderType;
+}
+
+function validatePlaceSafetyMode(options: { dryRun?: boolean; confirm?: string }): { dryRun: boolean } {
+  const confirm = options.confirm?.trim().toLowerCase();
+
+  if (options.dryRun && confirm) {
+    throw new CoinoneCliError('Choose exactly one safety mode for `orders place`.', {
+      causeHint: 'Use either `--dry-run` or `--confirm live`, but not both.'
+    });
+  }
+
+  if (!options.dryRun && !confirm) {
+    throw new CoinoneCliError('Missing required safety mode for `orders place`.', {
+      causeHint: 'Use `--dry-run` for local validation or `--confirm live` to submit a real order.'
+    });
+  }
+
+  if (confirm && confirm !== 'live') {
+    throw new CoinoneCliError('Invalid confirm value for `orders place`.', {
+      causeHint: 'Use `--confirm live` for real submissions.'
+    });
+  }
+
+  return { dryRun: Boolean(options.dryRun) };
+}
+
+function validateCancelConfirmation(confirm: string | undefined): void {
+  if (!confirm) {
+    throw new CoinoneCliError('Missing required live confirmation for `orders cancel`.', {
+      causeHint: 'Use `--confirm live` to cancel an order.'
+    });
+  }
+
+  if (confirm.trim().toLowerCase() !== 'live') {
+    throw new CoinoneCliError('Invalid confirm value for `orders cancel`.', {
+      causeHint: 'Use `--confirm live` to cancel an order.'
+    });
+  }
+}
+
 export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResult): Command {
   const command = new Command('orders')
-    .description('Query authenticated order data')
+    .description('Query authenticated order data and submit guarded order actions')
     .addHelpText(
       'after',
       [
@@ -74,6 +138,9 @@ export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResul
         'Examples:',
         '  coinone orders active',
         '  coinone orders get 12345 --quote krw --target btc',
+        '  coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run',
+        '  coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --confirm live',
+        '  coinone orders cancel --order-id 12345 --quote krw --target btc --confirm live',
         '  coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z',
         '  coinone orders completed --from 1735689600000 --to 1736294400000 --quote krw --target btc --json'
       ].join('\n')
@@ -127,6 +194,111 @@ export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResul
       });
 
       emitResult(this, buildOrderDetailResult(normalizeOrderDetail(response), response));
+    });
+
+  command
+    .command('place')
+    .requiredOption('--quote <quoteCurrency>', 'Quote currency, for example KRW')
+    .requiredOption('--target <targetCurrency>', 'Target currency, for example BTC')
+    .requiredOption('--side <buy|sell>', 'Order side: buy or sell')
+    .requiredOption('--type <type>', 'Order type; MVP currently supports limit only')
+    .requiredOption('--price <string>', 'Limit price as a decimal string')
+    .requiredOption('--qty <string>', 'Order quantity as a decimal string')
+    .option('--post-only', 'Submit the order as post-only')
+    .option('--user-order-id <id>', 'Optional user-provided order id')
+    .option('--dry-run', 'Validate locally only; do not call Coinone')
+    .option('--confirm <mode>', 'Required for live submission; use `live`')
+    .description('Place a guarded private limit order')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Safety:',
+        '  Use `--dry-run` to validate locally without a network request.',
+        '  Use `--confirm live` for real submission.',
+        '',
+        'Examples:',
+        '  coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run',
+        '  coinone orders place --quote krw --target btc --side sell --type limit --price 1200 --qty 0.01 --post-only --confirm live',
+        '  coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --user-order-id client-1 --confirm live'
+      ].join('\n')
+    )
+    .action(async function (options: {
+      quote: string;
+      target: string;
+      side: string;
+      type: string;
+      price: string;
+      qty: string;
+      postOnly?: boolean;
+      userOrderId?: string;
+      dryRun?: boolean;
+      confirm?: string;
+    }) {
+      const { dryRun } = validatePlaceSafetyMode(options);
+      const side = normalizeTradingSide(options.side);
+      const orderType = normalizeLimitOrderType(options.type);
+      const orderRequest = {
+        quoteCurrency: options.quote.toLowerCase(),
+        targetCurrency: options.target.toLowerCase(),
+        side,
+        orderType,
+        price: options.price,
+        qty: options.qty,
+        postOnly: Boolean(options.postOnly),
+        userOrderId: options.userOrderId
+      };
+
+      if (dryRun) {
+        const result = buildPlaceOrderDryRunResult(orderRequest);
+        emitResult(this, result);
+        return;
+      }
+
+      const submittedAt = new Date().toISOString();
+      const response = await client.placeOrder(orderRequest);
+      emitResult(this, buildPlaceOrderLiveResult(orderRequest, response, submittedAt));
+    });
+
+  command
+    .command('cancel')
+    .requiredOption('--order-id <id>', 'Coinone order id to cancel')
+    .requiredOption('--quote <quoteCurrency>', 'Quote currency, for example KRW')
+    .requiredOption('--target <targetCurrency>', 'Target currency, for example BTC')
+    .option('--confirm <mode>', 'Required for live cancel; use `live`')
+    .option('--user-order-id <id>', 'Optional user-provided order id')
+    .description('Cancel an order with explicit live confirmation')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Safety:',
+        '  Cancellation is live-only in this MVP.',
+        '  You must pass `--confirm live`.',
+        '',
+        'Examples:',
+        '  coinone orders cancel --order-id 12345 --quote krw --target btc --confirm live',
+        '  coinone orders cancel --order-id 12345 --quote krw --target btc --user-order-id client-1 --confirm live --json'
+      ].join('\n')
+    )
+    .action(async function (options: {
+      orderId: string;
+      quote: string;
+      target: string;
+      confirm: string;
+      userOrderId?: string;
+    }) {
+      validateCancelConfirmation(options.confirm);
+
+      const orderRequest = {
+        orderId: options.orderId,
+        quoteCurrency: options.quote.toLowerCase(),
+        targetCurrency: options.target.toLowerCase(),
+        userOrderId: options.userOrderId
+      };
+      const canceledAt = new Date().toISOString();
+      const response = await client.cancelOrder(orderRequest);
+      emitResult(this, buildCancelOrderResult(orderRequest, response, canceledAt));
     });
 
   command
@@ -230,6 +402,52 @@ interface NormalizedCompletedOrder {
   fee?: string;
   feeCurrency?: string;
   completedAt?: string;
+}
+
+interface PlaceOrderRequest {
+  quoteCurrency: string;
+  targetCurrency: string;
+  side: 'buy' | 'sell';
+  orderType: 'limit';
+  price: string;
+  qty: string;
+  postOnly: boolean;
+  userOrderId?: string;
+}
+
+interface CancelOrderRequest {
+  orderId: string;
+  quoteCurrency: string;
+  targetCurrency: string;
+  userOrderId?: string;
+}
+
+interface NormalizedPlaceOrderResult {
+  action: 'place';
+  dryRun: boolean;
+  submitted: boolean;
+  orderId: string | null;
+  pair: string;
+  side: 'buy' | 'sell';
+  orderType: 'limit';
+  price: string;
+  qty: string;
+  postOnly: boolean;
+  userOrderId: string | null;
+  validation?: 'passed';
+  submittedAt: string | null;
+}
+
+interface NormalizedCancelOrderResult {
+  action: 'cancel';
+  submitted: true;
+  orderId: string;
+  pair: string;
+  userOrderId: string | null;
+  status: string | null;
+  canceledAt: string | null;
+  canceledQty: string | null;
+  remainQty: string | null;
 }
 
 interface CompletedOrdersResultData {
@@ -346,6 +564,120 @@ function buildCompletedOrdersResult(
   };
 }
 
+function buildPlaceOrderDryRunResult(order: PlaceOrderRequest): CommandResult<NormalizedPlaceOrderResult> {
+  const data: NormalizedPlaceOrderResult = {
+    action: 'place',
+    dryRun: true,
+    submitted: false,
+    orderId: null,
+    pair: marketPair(toCode(order.targetCurrency), toCode(order.quoteCurrency)),
+    side: order.side,
+    orderType: order.orderType,
+    price: order.price,
+    qty: order.qty,
+    postOnly: order.postOnly,
+    userOrderId: order.userOrderId ?? null,
+    validation: 'passed',
+    submittedAt: null
+  };
+
+  return {
+    data,
+    raw: data,
+    renderTable: () =>
+      renderKeyValueTable([
+        { field: 'Action', value: data.action },
+        { field: 'Dry run', value: data.dryRun },
+        { field: 'Submitted', value: data.submitted },
+        { field: 'Pair', value: data.pair },
+        { field: 'Side', value: data.side },
+        { field: 'Type', value: data.orderType },
+        { field: 'Price', value: data.price },
+        { field: 'Quantity', value: data.qty },
+        { field: 'Post only', value: data.postOnly },
+        { field: 'User order id', value: data.userOrderId },
+        { field: 'Validation', value: data.validation }
+      ])
+  };
+}
+
+function buildPlaceOrderLiveResult(
+  order: PlaceOrderRequest,
+  response: PlaceOrderResponse,
+  requestedAt: string
+): CommandResult<NormalizedPlaceOrderResult> {
+  const normalized = normalizePlacedOrder(response);
+  const data: NormalizedPlaceOrderResult = {
+    action: 'place',
+    dryRun: false,
+    submitted: true,
+    orderId: normalized.orderId,
+    pair: normalized.pair ?? marketPair(toCode(order.targetCurrency), toCode(order.quoteCurrency)),
+    side: normalized.side ?? order.side,
+    orderType: normalized.orderType ?? order.orderType,
+    price: normalized.price ?? order.price,
+    qty: normalized.qty ?? order.qty,
+    postOnly: normalized.postOnly ?? order.postOnly,
+    userOrderId: normalized.userOrderId ?? order.userOrderId ?? null,
+    submittedAt: normalized.submittedAt ?? requestedAt
+  };
+
+  return {
+    data,
+    raw: response,
+    renderTable: () =>
+      renderKeyValueTable([
+        { field: 'Action', value: data.action },
+        { field: 'Submitted', value: data.submitted },
+        { field: 'Order id', value: data.orderId },
+        { field: 'Pair', value: data.pair },
+        { field: 'Side', value: data.side },
+        { field: 'Type', value: data.orderType },
+        { field: 'Price', value: data.price },
+        { field: 'Quantity', value: data.qty },
+        { field: 'Post only', value: data.postOnly },
+        { field: 'User order id', value: data.userOrderId },
+        { field: 'Submitted at', value: data.submittedAt }
+      ])
+  };
+}
+
+function buildCancelOrderResult(
+  order: CancelOrderRequest,
+  response: CancelOrderResponse,
+  requestedAt: string
+): CommandResult<NormalizedCancelOrderResult> {
+  const normalized = normalizeCanceledOrder(response);
+  const data: NormalizedCancelOrderResult = {
+    action: 'cancel',
+    submitted: true,
+    orderId: normalized.orderId ?? order.orderId,
+    pair: normalized.pair ?? marketPair(toCode(order.targetCurrency), toCode(order.quoteCurrency)),
+    userOrderId: normalized.userOrderId ?? order.userOrderId ?? null,
+    status: normalized.status ?? null,
+    canceledAt: normalized.canceledAt ?? requestedAt,
+    canceledQty: normalized.canceledQty ?? null,
+    remainQty: normalized.remainQty ?? null
+  };
+
+  return {
+    data,
+    raw: response,
+    renderTable: () =>
+      renderKeyValueTable([
+        { field: 'Action', value: data.action },
+        { field: 'Submitted', value: data.submitted },
+        { field: 'Order id', value: data.orderId },
+        { field: 'Pair', value: data.pair },
+        { field: 'User order id', value: data.userOrderId },
+        { field: 'Status', value: data.status },
+        { field: 'Canceled at', value: data.canceledAt },
+        { field: 'Canceled quantity', value: data.canceledQty },
+        { field: 'Remaining quantity', value: data.remainQty }
+      ])
+  };
+}
+
 function normalizeActiveOrders(response: ActiveOrdersResponse): NormalizedActiveOrder[] {
   const orders = response.active_orders ?? response.orders ?? [];
   return orders.map((order) => normalizeActiveOrder(order));
@@ -364,6 +696,95 @@ function normalizeOrderDetail(response: OrderDetailResponse): NormalizedOrderDet
 function normalizeCompletedOrders(response: CompletedOrdersResponse): NormalizedCompletedOrder[] {
   const orders = response.completed_orders ?? response.orders ?? response.transactions ?? [];
   return orders.map((order) => normalizeCompletedOrder(order));
+}
+
+function normalizePlacedOrder(response: PlaceOrderResponse): {
+  orderId: string | null;
+  userOrderId: string | null;
+  pair?: string;
+  side?: 'buy' | 'sell';
+  orderType?: 'limit';
+  price?: string;
+  qty?: string;
+  postOnly?: boolean;
+  submittedAt?: string;
+} {
+  const order = readRecord(response.order);
+  const quoteCurrency =
+    readString(response.quote_currency) ?? readString(order?.quote_currency) ?? readString(order?.quoteCurrency);
+  const targetCurrency =
+    readString(response.target_currency) ?? readString(order?.target_currency) ?? readString(order?.targetCurrency);
+  const side =
+    readString(response.side) ?? readString(order?.side) ?? readString(order?.order_side) ?? readString(order?.type);
+  const orderType = readString(response.order_type) ?? readString(order?.order_type) ?? readString(order?.orderType);
+
+  return {
+    orderId: readString(response.order_id) ?? readString(order?.order_id) ?? readString(order?.orderId) ?? null,
+    userOrderId:
+      readString(response.user_order_id) ??
+      readString(order?.user_order_id) ??
+      readString(order?.userOrderId) ??
+      null,
+    pair:
+      quoteCurrency && targetCurrency
+        ? marketPair(toCode(targetCurrency), toCode(quoteCurrency))
+        : undefined,
+    side: side === 'buy' || side === 'sell' ? side : undefined,
+    orderType: orderType === 'limit' ? orderType : undefined,
+    price: readString(response.price) ?? readString(order?.price),
+    qty: readString(response.qty) ?? readString(order?.qty),
+    postOnly:
+      readBoolean(response.post_only) ?? readBoolean(order?.post_only) ?? readBoolean(order?.postOnly),
+    submittedAt:
+      formatTime(
+        readString(response.submitted_at) ??
+          readString(order?.submitted_at) ??
+          readString(order?.created_at) ??
+          readString(response.server_time)
+      ) ?? undefined
+  };
+}
+
+function normalizeCanceledOrder(response: CancelOrderResponse): {
+  orderId: string | null;
+  userOrderId: string | null;
+  pair?: string;
+  status?: string;
+  canceledAt?: string;
+  canceledQty?: string;
+  remainQty?: string;
+} {
+  const order = readRecord(response.order);
+  const quoteCurrency =
+    readString(response.quote_currency) ?? readString(order?.quote_currency) ?? readString(order?.quoteCurrency);
+  const targetCurrency =
+    readString(response.target_currency) ?? readString(order?.target_currency) ?? readString(order?.targetCurrency);
+
+  return {
+    orderId: readString(response.order_id) ?? readString(order?.order_id) ?? readString(order?.orderId) ?? null,
+    userOrderId:
+      readString(response.user_order_id) ??
+      readString(order?.user_order_id) ??
+      readString(order?.userOrderId) ??
+      null,
+    pair:
+      quoteCurrency && targetCurrency
+        ? marketPair(toCode(targetCurrency), toCode(quoteCurrency))
+        : undefined,
+    status: readString(response.status) ?? readString(order?.status),
+    canceledAt:
+      formatTime(
+        readString(response.canceled_at) ??
+          readString(order?.canceled_at) ??
+          readString(response.server_time)
+      ) ?? undefined,
+    canceledQty:
+      readString(response.canceled_qty) ??
+      readString(response.cancel_qty) ??
+      readString(order?.canceled_qty) ??
+      readString(order?.cancel_qty),
+    remainQty: readString(response.remain_qty) ?? readString(order?.remain_qty)
+  };
 }
 
 function normalizeActiveOrder(order: ActiveOrderEntry | JsonRecord): NormalizedActiveOrder {
@@ -468,4 +889,26 @@ function readString(value: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    if (value === 'true') {
+      return true;
+    }
+
+    if (value === 'false') {
+      return false;
+    }
+  }
+
+  return undefined;
+}
+
+function readRecord(value: unknown): JsonRecord | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : undefined;
 }

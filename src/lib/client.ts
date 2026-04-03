@@ -3,6 +3,7 @@ import { CoinoneCliError, rateLimitHint } from './errors.js';
 import type {
   ActiveOrdersResponse,
   BalancesResponse,
+  CancelOrderResponse,
   CoinoneEnvelope,
   CompletedOrdersResponse,
   CurrenciesResponse,
@@ -10,6 +11,7 @@ import type {
   MarketsResponse,
   OrderBookResponse,
   OrderDetailResponse,
+  PlaceOrderResponse,
   PrivateAuthEnv,
   RangeUnitsResponse,
   TradeFeeResponse,
@@ -265,6 +267,42 @@ export class CoinoneClient {
       ...(filters.toTradeId ? { to_trade_id: filters.toTradeId } : {}),
       ...(filters.quoteCurrency ? { quote_currency: filters.quoteCurrency } : {}),
       ...(filters.targetCurrency ? { target_currency: filters.targetCurrency } : {})
+    });
+  }
+
+  async placeOrder(order: {
+    quoteCurrency: string;
+    targetCurrency: string;
+    side: 'buy' | 'sell';
+    orderType: 'limit';
+    price: string;
+    qty: string;
+    postOnly?: boolean;
+    userOrderId?: string;
+  }): Promise<PlaceOrderResponse> {
+    return this.postPrivateJson<PlaceOrderResponse>('/v2.1/order', {
+      quote_currency: order.quoteCurrency,
+      target_currency: order.targetCurrency,
+      side: order.side,
+      order_type: order.orderType,
+      price: order.price,
+      qty: order.qty,
+      ...(order.postOnly ? { post_only: true } : {}),
+      ...(order.userOrderId ? { user_order_id: order.userOrderId } : {})
+    });
+  }
+
+  async cancelOrder(order: {
+    orderId: string;
+    quoteCurrency: string;
+    targetCurrency: string;
+    userOrderId?: string;
+  }): Promise<CancelOrderResponse> {
+    return this.postPrivateJson<CancelOrderResponse>('/v2.1/order/cancel', {
+      order_id: order.orderId,
+      quote_currency: order.quoteCurrency,
+      target_currency: order.targetCurrency,
+      ...(order.userOrderId ? { user_order_id: order.userOrderId } : {})
     });
   }
 

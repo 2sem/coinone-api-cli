@@ -229,6 +229,59 @@ export interface CompletedOrdersResponse extends CoinoneEnvelope, JsonRecord {
   transactions?: CompletedOrderEntry[];
 }
 
+export interface PlacedOrderEntry extends JsonRecord {
+  order_id?: string;
+  user_order_id?: string;
+  quote_currency?: string;
+  target_currency?: string;
+  side?: string;
+  order_type?: string;
+  price?: string;
+  qty?: string;
+  post_only?: boolean | string;
+  created_at?: number | string;
+  submitted_at?: number | string;
+}
+
+export interface PlaceOrderResponse extends CoinoneEnvelope, JsonRecord {
+  order_id?: string;
+  user_order_id?: string;
+  quote_currency?: string;
+  target_currency?: string;
+  side?: string;
+  order_type?: string;
+  price?: string;
+  qty?: string;
+  post_only?: boolean | string;
+  submitted_at?: number | string;
+  order?: PlacedOrderEntry;
+}
+
+export interface CancelOrderEntry extends JsonRecord {
+  order_id?: string;
+  user_order_id?: string;
+  quote_currency?: string;
+  target_currency?: string;
+  status?: string;
+  canceled_at?: number | string;
+  cancel_qty?: string;
+  canceled_qty?: string;
+  remain_qty?: string;
+}
+
+export interface CancelOrderResponse extends CoinoneEnvelope, JsonRecord {
+  order_id?: string;
+  user_order_id?: string;
+  quote_currency?: string;
+  target_currency?: string;
+  status?: string;
+  canceled_at?: number | string;
+  cancel_qty?: string;
+  canceled_qty?: string;
+  remain_qty?: string;
+  order?: CancelOrderEntry;
+}
+
 export interface OutputOptions {
   json?: boolean;
   output?: OutputMode;
