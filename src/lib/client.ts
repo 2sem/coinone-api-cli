@@ -4,10 +4,12 @@ import type {
   ActiveOrdersResponse,
   BalancesResponse,
   CoinoneEnvelope,
+  CompletedOrdersResponse,
   CurrenciesResponse,
   JsonRecord,
   MarketsResponse,
   OrderBookResponse,
+  OrderDetailResponse,
   PrivateAuthEnv,
   RangeUnitsResponse,
   TradeFeesResponse,
@@ -171,6 +173,43 @@ export class CoinoneClient {
       ...(filters.orderTypes && filters.orderTypes.length > 0
         ? { order_type: filters.orderTypes }
         : {})
+    });
+  }
+
+  async getOrderDetail(filters: {
+    orderId: string;
+    quoteCurrency: string;
+    targetCurrency: string;
+    userOrderId?: string;
+  }): Promise<OrderDetailResponse> {
+    return this.postPrivateJson<OrderDetailResponse>('/v2.1/order/detail', {
+      order_id: filters.orderId,
+      quote_currency: filters.quoteCurrency,
+      target_currency: filters.targetCurrency,
+      ...(filters.userOrderId ? { user_order_id: filters.userOrderId } : {})
+    });
+  }
+
+  async listCompletedOrders(filters: {
+    fromTs: number;
+    toTs: number;
+    size: number;
+    toTradeId?: string;
+    quoteCurrency?: string;
+    targetCurrency?: string;
+  }): Promise<CompletedOrdersResponse> {
+    const path =
+      filters.quoteCurrency && filters.targetCurrency
+        ? '/v2.1/order/completed_orders'
+        : '/v2.1/order/completed_orders/all';
+
+    return this.postPrivateJson<CompletedOrdersResponse>(path, {
+      size: filters.size,
+      from_ts: filters.fromTs,
+      to_ts: filters.toTs,
+      ...(filters.toTradeId ? { to_trade_id: filters.toTradeId } : {}),
+      ...(filters.quoteCurrency ? { quote_currency: filters.quoteCurrency } : {}),
+      ...(filters.targetCurrency ? { target_currency: filters.targetCurrency } : {})
     });
   }
 

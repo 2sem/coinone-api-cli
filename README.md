@@ -11,7 +11,7 @@ It aims for familiar CLI ergonomics inspired by tools like `gh`, `httpie`, and `
 - actionable error messages
 - minimal dependencies
 
-The CLI exposes public market data plus a minimal authenticated workflow for balances, fees, and active orders. Private commands are read-only and never print raw secrets.
+The CLI exposes public market data plus a minimal authenticated workflow for balances, fees, order lookup, and order history. Private commands are read-only and never print raw secrets.
 
 ## Requirements
 
@@ -48,6 +48,8 @@ coinone currencies list
 coinone currencies get <currency>
 coinone fees list
 coinone orders active [--quote <quoteCurrency>] [--target <targetCurrency>] [--type <type>]
+coinone orders get <orderId> --quote <quoteCurrency> --target <targetCurrency> [--user-order-id <id>]
+coinone orders completed --from <timestamp-ms|iso> --to <timestamp-ms|iso> [--size <1-100>] [--to-trade-id <id>] [--quote <quoteCurrency> --target <targetCurrency>]
 coinone ticker get <targetCurrency> --quote <quoteCurrency>
 coinone ticker list [--quote <quoteCurrency>]
 coinone orderbook get <targetCurrency> --quote <quoteCurrency> [--size <n>]   # size: 5, 10, 15, 16
@@ -63,6 +65,8 @@ coinone range-units get <targetCurrency> --quote <quoteCurrency>
 - `--output raw`: pretty-printed raw Coinone API response
 - `orderbook get --size`: one of `5`, `10`, `15`, `16`
 - `trades list --size`: one of `10`, `50`, `100`, `150`, `200`
+- `orders completed --from/--to`: UTC millisecond timestamps or ISO-8601 values
+- `orders completed`: max time window is `90` days and `--quote`/`--target` must be passed together
 
 Examples:
 
@@ -73,6 +77,9 @@ coinone balances list --json
 coinone balances get btc
 coinone fees list
 coinone orders active --quote krw --target btc --type limit
+coinone orders get 12345 --quote krw --target btc
+coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z
+coinone orders completed --from 1735689600000 --to 1736294400000 --quote krw --target btc --json
 coinone markets get btc --quote krw
 coinone ticker list --quote krw
 coinone ticker get btc --quote krw --json
@@ -128,6 +135,9 @@ Safety notes:
   - `/v2.1/account/balance`
   - `/v2.1/account/trade_fee`
   - `/v2.1/order/active_orders`
+  - `/v2.1/order/detail`
+  - `/v2.1/order/completed_orders/all`
+  - `/v2.1/order/completed_orders`
 
 ## Scripts
 
@@ -146,6 +156,7 @@ npm run cli -- --help
 - `src/lib/output.ts`: output mode resolution and rendering
 - `src/lib/errors.ts`: normalized CLI and API error handling
 - `src/lib/formatters.ts`: table/summary formatting helpers
+- `src/lib/time.ts`: timestamp parsing and completed-order window validation
 
 ## Example automation
 
@@ -154,6 +165,7 @@ coinone ticker get btc --quote krw --json
 coinone currencies list --json
 coinone balances list --json
 coinone orders active --quote krw --json
+coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --json
 ```
 
 ```bash

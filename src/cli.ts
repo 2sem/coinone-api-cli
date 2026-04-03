@@ -63,6 +63,8 @@ export function createCli(dependencies: RunCliDependencies = {}): Command {
          '  coinone markets get btc --quote krw',
          '  coinone currencies get eth --json',
          '  coinone fees list --json',
+         '  coinone orders get 12345 --quote krw --target btc',
+         '  coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z',
          '  coinone ticker list --quote krw',
          '  coinone trades list btc --quote krw --size 50',
          '  coinone orders active --quote krw --target btc',
@@ -101,7 +103,9 @@ export async function runCli(
     return 0;
   } catch (error) {
     if (error instanceof CommanderError) {
-      return error.code === 'commander.helpDisplayed' ? 0 : error.exitCode;
+      return error.code === 'commander.helpDisplayed' || argv.includes('--help') || argv.includes('-h')
+        ? 0
+        : error.exitCode;
     }
 
     const normalized = normalizeError(error);

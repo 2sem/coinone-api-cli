@@ -173,6 +173,52 @@ export interface ActiveOrdersResponse extends CoinoneEnvelope, JsonRecord {
   orders?: ActiveOrderEntry[];
 }
 
+export interface OrderDetailEntry extends JsonRecord {
+  order_id?: string;
+  user_order_id?: string;
+  quote_currency?: string;
+  target_currency?: string;
+  side?: string;
+  order_type?: string;
+  status?: string;
+  price?: string;
+  qty?: string;
+  remain_qty?: string;
+  filled_qty?: string;
+  fee?: string;
+  fee_rate?: string;
+  average_executed_price?: string;
+  created_at?: number | string;
+  updated_at?: number | string;
+}
+
+export interface OrderDetailResponse extends CoinoneEnvelope, JsonRecord {
+  order?: OrderDetailEntry;
+  order_detail?: OrderDetailEntry;
+}
+
+export interface CompletedOrderEntry extends JsonRecord {
+  trade_id?: string;
+  order_id?: string;
+  user_order_id?: string;
+  quote_currency?: string;
+  target_currency?: string;
+  side?: string;
+  order_type?: string;
+  price?: string;
+  qty?: string;
+  fee?: string;
+  fee_currency?: string;
+  timestamp?: number | string;
+  completed_at?: number | string;
+}
+
+export interface CompletedOrdersResponse extends CoinoneEnvelope, JsonRecord {
+  completed_orders?: CompletedOrderEntry[];
+  orders?: CompletedOrderEntry[];
+  transactions?: CompletedOrderEntry[];
+}
+
 export interface OutputOptions {
   json?: boolean;
   output?: OutputMode;
