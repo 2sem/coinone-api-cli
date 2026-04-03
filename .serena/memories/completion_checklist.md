@@ -1,0 +1,1 @@
+Because the repository is empty, completion steps must be defined with the initial implementation. At minimum, a finished task should include: dependency install, lint/format if configured, automated tests for core command logic, and a verified runnable CLI entrypoint.

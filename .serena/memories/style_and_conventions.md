@@ -1,0 +1,1 @@
+No repository-specific code style exists yet. Follow pragmatic modern CLI conventions: clear command names, minimal dependencies, consistent naming, typed interfaces where supported, and avoid axios per global instruction. Preserve backward compatibility once commands are established.

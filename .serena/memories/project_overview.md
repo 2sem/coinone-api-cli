@@ -1,0 +1,1 @@
+Project root /Users/LYJ/Projects/leesam/opensources/coinone-api-cli is currently an empty scaffold with only .serena metadata. Intended purpose from user request: build a CLI for the Coinone API based on https://docs.coinone.co.kr/docs/about-public-api. No existing source code, package manifest, tests, or build tooling are present yet.

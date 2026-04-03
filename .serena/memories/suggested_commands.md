@@ -1,0 +1,1 @@
+Current useful commands on Darwin for this repo are basic shell inspection commands and future project-specific commands once the CLI stack is chosen. Existing available utilities include git, ls, grep/rg, and standard shell commands. No project build/test commands exist yet because the repo is empty.

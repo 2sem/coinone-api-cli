@@ -1,0 +1,38 @@
+{
+  "name": "coinone-api-cli",
+  "version": "0.1.0",
+  "description": "Developer-friendly CLI for Coinone public APIs.",
+  "type": "module",
+  "bin": {
+    "coinone": "./dist/bin/coinone.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cli": "tsx src/bin/coinone.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "coinone",
+    "cli",
+    "cryptocurrency",
+    "api"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^14.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
