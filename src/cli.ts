@@ -1,4 +1,4 @@
-import { Command, CommanderError } from 'commander';
+import { Command, CommanderError, InvalidArgumentError } from 'commander';
 
 import { createAuthCommand } from './commands/auth.js';
 import { createBalancesCommand } from './commands/balances.js';
@@ -13,7 +13,7 @@ import { createTradesCommand } from './commands/trades.js';
 import { CoinoneClient, type FetchLike } from './lib/client.js';
 import { formatError, normalizeError } from './lib/errors.js';
 import { isColorEnabled, renderOutput, resolveOutputMode } from './lib/output.js';
-import type { CommandResult, OutputOptions, PrivateAuthEnv } from './lib/types.js';
+import type { CommandResult, GlobalCliOptions, OutputOptions, PrivateAuthEnv } from './lib/types.js';
 
 interface RunCliDependencies {
   env?: PrivateAuthEnv;
@@ -21,10 +21,37 @@ interface RunCliDependencies {
   stdout?: { write(chunk: string): void };
   stderr?: { write(chunk: string): void };
   baseUrl?: string;
+  timeoutMs?: number;
 }
 
-function readGlobalOptions(command: Command): OutputOptions {
-  return command.optsWithGlobals<OutputOptions>();
+function parseBaseUrlOption(value: string): string {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    throw new InvalidArgumentError('Base URL must be an absolute http(s) URL.');
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new InvalidArgumentError('Base URL must use http or https.');
+  }
+
+  return url.toString().replace(/\/$/, '');
+}
+
+function parseTimeoutOption(value: string): number {
+  const timeoutMs = Number(value);
+
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new InvalidArgumentError('Timeout must be a positive integer in milliseconds.');
+  }
+
+  return timeoutMs;
+}
+
+function readGlobalOptions(command: Command): GlobalCliOptions {
+  return command.optsWithGlobals<GlobalCliOptions>();
 }
 
 function emitResult(stdout: { write(chunk: string): void }, command: Command, result: CommandResult<unknown>): void {
@@ -40,7 +67,8 @@ export function createCli(dependencies: RunCliDependencies = {}): Command {
   const client = new CoinoneClient({
     env,
     fetchImplementation: dependencies.fetchImplementation,
-    baseUrl: dependencies.baseUrl
+    baseUrl: dependencies.baseUrl,
+    timeoutMs: dependencies.timeoutMs
   });
 
   const root = new Command()
@@ -52,6 +80,8 @@ export function createCli(dependencies: RunCliDependencies = {}): Command {
     .option('--json', 'Output normalized JSON')
     .option('--output <mode>', 'Output mode: table, json, raw', 'table')
     .option('--color', 'Force color output when printing errors')
+    .option('--base-url <url>', 'Override the Coinone API base URL', parseBaseUrlOption)
+    .option('--timeout <ms>', 'Set request timeout in milliseconds', parseTimeoutOption)
     .addHelpText(
       'after',
       [
@@ -59,10 +89,12 @@ export function createCli(dependencies: RunCliDependencies = {}): Command {
         'Examples:',
          '  coinone markets list',
          '  coinone auth status',
-         '  coinone balances list',
-         '  coinone markets get btc --quote krw',
-          '  coinone currencies get eth --json',
-          '  coinone fees list --json',
+          '  coinone balances list',
+          '  coinone --timeout 10000 ticker get btc --quote krw',
+          '  coinone --base-url https://api.coinone.co.kr ticker list --quote krw',
+          '  coinone markets get btc --quote krw',
+           '  coinone currencies get eth --json',
+           '  coinone fees list --json',
           '  coinone fees get --quote krw --target btc',
           '  coinone orders get 12345 --quote krw --target btc',
          '  coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z',
@@ -75,6 +107,13 @@ export function createCli(dependencies: RunCliDependencies = {}): Command {
     .configureOutput({
       writeOut: (message) => stdout.write(message),
       writeErr: (message) => stderr.write(message)
+    })
+    .hook('preAction', (_thisCommand, actionCommand) => {
+      const options = readGlobalOptions(actionCommand);
+      client.setRuntimeOptions({
+        baseUrl: options.baseUrl,
+        timeoutMs: options.timeout
+      });
     })
     .exitOverride();
 

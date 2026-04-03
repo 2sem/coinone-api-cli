@@ -235,6 +235,11 @@ export interface OutputOptions {
   color?: boolean;
 }
 
+export interface GlobalCliOptions extends OutputOptions {
+  baseUrl?: string;
+  timeout?: number;
+}
+
 export interface CommandResult<TNormalized> {
   data: TNormalized;
   raw: unknown;

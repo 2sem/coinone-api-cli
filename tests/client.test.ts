@@ -33,6 +33,29 @@ describe('CoinoneClient', () => {
     expect(calls).toEqual(['https://api.coinone.co.kr/public/v2/ticker_new/krw/btc']);
   });
 
+  it('uses a custom base URL when configured', async () => {
+    const calls: string[] = [];
+    const client = new CoinoneClient({
+      baseUrl: 'https://sandbox.coinone.test/api',
+      fetchImplementation: async (input) => {
+        calls.push(String(input));
+        return new Response(
+          JSON.stringify({
+            result: 'success',
+            error_code: '0',
+            server_time: 1,
+            tickers: []
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+    });
+
+    await client.getTicker('krw', 'btc');
+
+    expect(calls).toEqual(['https://sandbox.coinone.test/api/public/v2/ticker_new/krw/btc']);
+  });
+
   it('normalizes API failures into a cli error', async () => {
     const client = new CoinoneClient({
       fetchImplementation: async () =>
@@ -47,6 +70,38 @@ describe('CoinoneClient', () => {
     });
 
     await expect(client.getCurrency('bad')).rejects.toBeInstanceOf(CoinoneCliError);
+  });
+
+  it('times out slow requests when timeoutMs is configured', async () => {
+    const client = new CoinoneClient({
+      timeoutMs: 20,
+      fetchImplementation: async (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+
+          if (!signal) {
+            reject(new Error('missing signal'));
+            return;
+          }
+
+          if (signal.aborted) {
+            reject(signal.reason);
+            return;
+          }
+
+          signal.addEventListener(
+            'abort',
+            () => {
+              reject(signal.reason);
+            },
+            { once: true }
+          );
+        })
+    });
+
+    await expect(client.getTicker('krw', 'btc')).rejects.toMatchObject({
+      message: 'Request timed out after 20ms.'
+    });
   });
 
   it('signs private POST requests and includes auth fields in the body', async () => {

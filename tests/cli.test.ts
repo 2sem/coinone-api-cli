@@ -326,4 +326,68 @@ describe('runCli', () => {
     expect(helpText).toContain('--target <targetCurrency>');
     expect(helpText).toContain('Get trade fee for one market pair');
   });
+
+  it('shows global base-url and timeout options in help', async () => {
+    const cli = createCli();
+    const helpText = cli.helpInformation();
+
+    expect(helpText).toContain('--base-url <url>');
+    expect(helpText).toContain('--timeout <ms>');
+  });
+
+  it('wires the global base-url option into client requests', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+    let requestUrl = '';
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        '--base-url',
+        'https://sandbox.coinone.test/api',
+        '--json',
+        'ticker',
+        'get',
+        'btc',
+        '--quote',
+        'krw'
+      ],
+      {
+        stdout,
+        stderr,
+        fetchImplementation: async (input) => {
+          requestUrl = String(input);
+          return new Response(
+            JSON.stringify({
+              result: 'success',
+              error_code: '0',
+              server_time: 1,
+              tickers: [
+                {
+                  quote_currency: 'krw',
+                  target_currency: 'btc',
+                  timestamp: 1,
+                  high: '110',
+                  low: '90',
+                  first: '100',
+                  last: '105',
+                  quote_volume: '1000',
+                  target_volume: '10',
+                  best_asks: [{ price: '106', qty: '1' }],
+                  best_bids: [{ price: '104', qty: '2' }],
+                  id: 'abc'
+                }
+              ]
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          );
+        }
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(requestUrl).toBe('https://sandbox.coinone.test/api/public/v2/ticker_new/krw/btc');
+  });
 });

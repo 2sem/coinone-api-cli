@@ -71,24 +71,72 @@ function normalizeApiFailure(
   });
 }
 
-function normalizeNetworkFailure(error: unknown): CoinoneCliError {
+function normalizeNetworkFailure(error: unknown, timeoutMs?: number): CoinoneCliError {
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    return new CoinoneCliError(
+      timeoutMs ? `Request timed out after ${timeoutMs}ms.` : 'Request timed out.',
+      {
+        causeHint: 'Increase `--timeout` or retry when the Coinone API is responding normally.',
+        details: error.message
+      }
+    );
+  }
+
   return new CoinoneCliError('Unable to reach Coinone API.', {
     causeHint: 'Check your network connection and try again.',
     details: error instanceof Error ? error.message : String(error)
   });
 }
 
+function buildRequestSignal(
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number | undefined
+): AbortSignal | undefined {
+  if (!signal && timeoutMs === undefined) {
+    return undefined;
+  }
+
+  if (timeoutMs === undefined) {
+    return signal ?? undefined;
+  }
+
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+
+  if (!signal) {
+    return timeoutSignal;
+  }
+
+  return AbortSignal.any([signal, timeoutSignal]);
+}
+
 export class CoinoneClient {
-  private readonly baseUrl: string;
+  private baseUrl: string;
+  private timeoutMs: number | undefined;
   private readonly env: PrivateAuthEnv;
   private readonly fetchImplementation: FetchLike;
 
   constructor(
-    options: { baseUrl?: string; env?: PrivateAuthEnv; fetchImplementation?: FetchLike } = {}
+    options: {
+      baseUrl?: string;
+      timeoutMs?: number;
+      env?: PrivateAuthEnv;
+      fetchImplementation?: FetchLike;
+    } = {}
   ) {
     this.baseUrl = options.baseUrl ?? 'https://api.coinone.co.kr';
+    this.timeoutMs = options.timeoutMs;
     this.env = options.env ?? process.env;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
+  }
+
+  setRuntimeOptions(options: { baseUrl?: string; timeoutMs?: number }): void {
+    if (options.baseUrl !== undefined) {
+      this.baseUrl = options.baseUrl;
+    }
+
+    if (options.timeoutMs !== undefined) {
+      this.timeoutMs = options.timeoutMs;
+    }
   }
 
   async listMarkets(quoteCurrency: string): Promise<MarketsResponse> {
@@ -254,12 +302,14 @@ export class CoinoneClient {
     url: string,
     init: RequestInit
   ): Promise<TResponse> {
+    const signal = buildRequestSignal(init.signal, this.timeoutMs);
+    const requestInit = signal ? { ...init, signal } : init;
 
     let response: Response;
     try {
-      response = await this.fetchImplementation(url, init);
+      response = await this.fetchImplementation(url, requestInit);
     } catch (error) {
-      throw normalizeNetworkFailure(error);
+      throw normalizeNetworkFailure(error, this.timeoutMs);
     }
 
     const rawBody = await response.text();

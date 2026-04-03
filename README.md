@@ -19,22 +19,54 @@ The CLI exposes public market data plus a minimal authenticated workflow for bal
 
 ## Install
 
+### Local development install
+
 ```bash
 npm install
 npm run build
-```
-
-Run locally without building:
-
-```bash
 npm run cli -- --help
 ```
 
-Run built CLI:
+### Global install from a local checkout
+
+```bash
+npm install
+npm run build
+npm install -g .
+coinone --help
+```
+
+### Local package smoke test before publishing
+
+```bash
+npm test
+npm run build
+npm pack --dry-run
+```
+
+`prepublishOnly` runs `npm run build && npm test`, so `npm publish` fails fast if the package is not ready.
+
+### npx-style usage
+
+If the package is published to npm, you can run it without a global install:
+
+```bash
+npx coinone-api-cli@latest --help
+```
+
+You can also run the built local binary directly:
 
 ```bash
 node dist/bin/coinone.js --help
 ```
+
+## Global options
+
+- `--json`: emit normalized JSON for scripts and agents
+- `--output <mode>`: choose `table`, `json`, or `raw`
+- `--base-url <url>`: point the CLI at a proxy, mock server, or alternate Coinone-compatible host
+- `--timeout <ms>`: set a request timeout in milliseconds for every API call in the command
+- `--color`: force colorized error output
 
 ## Commands
 
@@ -56,6 +88,48 @@ coinone ticker list [--quote <quoteCurrency>]
 coinone orderbook get <targetCurrency> --quote <quoteCurrency> [--size <n>]   # size: 5, 10, 15, 16
 coinone trades list <targetCurrency> --quote <quoteCurrency> [--size <n>]      # size: 10, 50, 100, 150, 200
 coinone range-units get <targetCurrency> --quote <quoteCurrency>
+```
+
+## Quickstart
+
+### Public market data
+
+```bash
+coinone markets list
+coinone ticker get btc --quote krw
+coinone trades list btc --quote krw --size 50 --json
+coinone orderbook get btc --quote krw --size 10
+```
+
+### Private read-only commands
+
+```bash
+export COINONE_ACCESS_TOKEN="your-access-token"
+export COINONE_SECRET_KEY="your-secret-key"
+
+coinone auth status
+coinone balances list
+coinone fees get --quote krw --target btc
+coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --json
+```
+
+### Script-friendly examples
+
+```bash
+coinone --json ticker get btc --quote krw
+coinone --timeout 10000 ticker list --quote krw --json
+coinone --base-url http://127.0.0.1:4010 --json markets get btc --quote krw
+coinone balances list --json
+```
+
+```bash
+last_price=$(coinone --json ticker get btc --quote krw | jq -r '.last')
+echo "$last_price"
+```
+
+```bash
+coinone --json orders active --quote krw --target btc | jq '.orders'
+coinone --output raw ticker get btc --quote krw
 ```
 
 ## Output modes
@@ -82,6 +156,8 @@ coinone orders active --quote krw --target btc --type limit
 coinone orders get 12345 --quote krw --target btc
 coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z
 coinone orders completed --from 1735689600000 --to 1736294400000 --quote krw --target btc --json
+coinone --timeout 15000 ticker get btc --quote krw --json
+coinone --base-url http://127.0.0.1:4010 ticker list --quote krw
 coinone markets get btc --quote krw
 coinone ticker list --quote krw
 coinone ticker get btc --quote krw --json
@@ -150,12 +226,34 @@ coinone fees get --quote krw --target btc --json
   - `/v2.1/order/completed_orders/all`
   - `/v2.1/order/completed_orders`
 
+## Scripting for AI agents and automation
+
+- prefer `--json` for stable machine-readable output
+- use `--timeout <ms>` in CI or agent loops to fail fast on slow requests
+- use `--base-url <url>` for mocked APIs, replay servers, or local integration tests
+- keep private credentials in environment variables instead of inline flags or prompts
+
+Examples:
+
+```bash
+coinone --json currencies list
+coinone --json balances get btc
+coinone --json orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --quote krw --target btc
+```
+
+```bash
+market_json=$(coinone --json markets get btc --quote krw)
+price_unit=$(printf '%s' "$market_json" | jq -r '.priceUnit')
+echo "$price_unit"
+```
+
 ## Scripts
 
 ```bash
 npm run build
 npm test
 npm run cli -- --help
+npm pack --dry-run
 ```
 
 ## Architecture
@@ -168,18 +266,3 @@ npm run cli -- --help
 - `src/lib/errors.ts`: normalized CLI and API error handling
 - `src/lib/formatters.ts`: table/summary formatting helpers
 - `src/lib/time.ts`: timestamp parsing and completed-order window validation
-
-## Example automation
-
-```bash
-coinone ticker get btc --quote krw --json
-coinone currencies list --json
-coinone balances list --json
-coinone orders active --quote krw --json
-coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --json
-```
-
-```bash
-last_price=$(coinone ticker get btc --quote krw --json | jq -r '.last')
-echo "$last_price"
-```
