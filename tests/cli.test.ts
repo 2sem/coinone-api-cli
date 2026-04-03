@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createCli, runCli } from '../src/cli.js';
+import { CLI_VERSION } from '../src/lib/runtime.js';
 
 function createWritable() {
   let contents = '';
@@ -33,7 +34,7 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(0);
     expect(stderr.read()).toBe('');
-    expect(stdout.read()).toContain('"cliVersion": "1.0.0"');
+    expect(stdout.read()).toContain(`"cliVersion": "${CLI_VERSION}"`);
     expect(stdout.read()).toContain('"nodeExecutablePath": "/opt/homebrew/bin/node"');
     expect(stdout.read()).toContain('"cliExecutablePath": "/usr/local/bin/coinone"');
     expect(stdout.read()).toContain('"currentWorkingDirectory": "/tmp/coinone-doctor"');
