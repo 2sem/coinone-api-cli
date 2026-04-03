@@ -68,6 +68,33 @@ You can also run the built local binary directly:
 node dist/bin/coinone.js --help
 ```
 
+## Update
+
+### If you installed from the Git repository
+
+Re-run the global install command against the repo:
+
+```bash
+npm install -g git+https://github.com/2sem/coinone-api-cli.git
+```
+
+### If you installed from a local clone
+
+Pull the latest changes, rebuild, and reinstall globally:
+
+```bash
+git pull
+npm install
+npm run build
+npm install -g .
+```
+
+### Check the installed version
+
+```bash
+coinone --version
+```
+
 ## Global options
 
 - `--json`: emit normalized JSON for scripts and agents
