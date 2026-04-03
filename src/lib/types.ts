@@ -26,6 +26,21 @@ export interface PrivateAuthStatus {
   missing: string[];
 }
 
+export interface DoctorReport {
+  cliVersion: string;
+  nodeVersion: string;
+  nodeExecutablePath: string;
+  cliExecutablePath?: string;
+  currentWorkingDirectory: string;
+  accessTokenConfigured: boolean;
+  secretKeyConfigured: boolean;
+  privateAuthConfigured: boolean;
+  missingEnvVars: string[];
+  status: 'ready' | 'needs-auth';
+  summary: string;
+  nextSteps: string[];
+}
+
 export interface PreparedPrivateRequest {
   body: string;
   nonce: string;

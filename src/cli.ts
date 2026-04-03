@@ -3,6 +3,7 @@ import { Command, CommanderError, InvalidArgumentError } from 'commander';
 import { createAuthCommand } from './commands/auth.js';
 import { createBalancesCommand } from './commands/balances.js';
 import { createCurrenciesCommand } from './commands/currencies.js';
+import { createDoctorCommand } from './commands/doctor.js';
 import { createFeesCommand } from './commands/fees.js';
 import { createMarketsCommand } from './commands/markets.js';
 import { createOrderbookCommand } from './commands/orderbook.js';
@@ -13,6 +14,7 @@ import { createTradesCommand } from './commands/trades.js';
 import { CoinoneClient, type FetchLike } from './lib/client.js';
 import { formatError, normalizeError } from './lib/errors.js';
 import { isColorEnabled, renderOutput, resolveOutputMode } from './lib/output.js';
+import { CLI_VERSION } from './lib/runtime.js';
 import type { CommandResult, GlobalCliOptions, OutputOptions, PrivateAuthEnv } from './lib/types.js';
 
 interface RunCliDependencies {
@@ -22,6 +24,9 @@ interface RunCliDependencies {
   stderr?: { write(chunk: string): void };
   baseUrl?: string;
   timeoutMs?: number;
+  argv?: string[];
+  cwd?: string;
+  execPath?: string;
 }
 
 function parseBaseUrlOption(value: string): string {
@@ -74,7 +79,7 @@ export function createCli(dependencies: RunCliDependencies = {}): Command {
   const root = new Command()
     .name('coinone')
     .description('Developer-friendly CLI for Coinone public and private APIs')
-    .version('0.1.0')
+    .version(CLI_VERSION)
     .showHelpAfterError()
     .showSuggestionAfterError()
     .option('--json', 'Output normalized JSON')
@@ -87,25 +92,27 @@ export function createCli(dependencies: RunCliDependencies = {}): Command {
       [
         '',
         'Examples:',
-         '  coinone markets list',
-         '  coinone auth status',
-          '  coinone balances list',
-          '  coinone --timeout 10000 ticker get btc --quote krw',
-          '  coinone --base-url https://api.coinone.co.kr ticker list --quote krw',
-          '  coinone markets get btc --quote krw',
-           '  coinone currencies get eth --json',
-           '  coinone fees list --json',
-          '  coinone fees get --quote krw --target btc',
-          '  coinone orders get 12345 --quote krw --target btc',
-          '  coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run',
-          '  coinone orders cancel --order-id 12345 --quote krw --target btc --confirm live',
-          '  coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z',
-         '  coinone ticker list --quote krw',
-         '  coinone trades list btc --quote krw --size 50',
-         '  coinone orders active --quote krw --target btc',
-         '  coinone orderbook get btc --quote krw --output raw'
-       ].join('\n')
-     )
+        '  coinone doctor',
+        '  coinone doctor --json',
+        '  coinone markets list',
+        '  coinone auth status',
+        '  coinone balances list',
+        '  coinone --timeout 10000 ticker get btc --quote krw',
+        '  coinone --base-url https://api.coinone.co.kr ticker list --quote krw',
+        '  coinone markets get btc --quote krw',
+        '  coinone currencies get eth --json',
+        '  coinone fees list --json',
+        '  coinone fees get --quote krw --target btc',
+        '  coinone orders get 12345 --quote krw --target btc',
+        '  coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run',
+        '  coinone orders cancel --order-id 12345 --quote krw --target btc --confirm live',
+        '  coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-07T00:00:00Z',
+        '  coinone ticker list --quote krw',
+        '  coinone trades list btc --quote krw --size 50',
+        '  coinone orders active --quote krw --target btc',
+        '  coinone orderbook get btc --quote krw --output raw'
+      ].join('\n')
+    )
     .configureOutput({
       writeOut: (message) => stdout.write(message),
       writeErr: (message) => stderr.write(message)
@@ -119,6 +126,17 @@ export function createCli(dependencies: RunCliDependencies = {}): Command {
     })
     .exitOverride();
 
+  root.addCommand(
+    createDoctorCommand(
+      {
+        env,
+        argv: dependencies.argv,
+        cwd: dependencies.cwd,
+        execPath: dependencies.execPath
+      },
+      (command, result) => emitResult(stdout, command, result)
+    )
+  );
   root.addCommand(createAuthCommand(env, (command, result) => emitResult(stdout, command, result)));
   root.addCommand(createBalancesCommand(client, (command, result) => emitResult(stdout, command, result)));
   root.addCommand(createMarketsCommand(client, (command, result) => emitResult(stdout, command, result)));
