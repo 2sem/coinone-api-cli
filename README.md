@@ -44,6 +44,8 @@ npm run build
 npm pack --dry-run
 ```
 
+The GitHub Actions CI job runs the same release-readiness checks on every `push` and `pull_request`.
+
 `prepublishOnly` runs `npm run build && npm test`, so `npm publish` fails fast if the package is not ready.
 
 ### npx-style usage
