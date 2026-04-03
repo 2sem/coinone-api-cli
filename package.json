@@ -2,6 +2,14 @@
   "name": "coinone-api-cli",
   "version": "1.0.1",
   "description": "Developer-friendly CLI for Coinone public APIs.",
+  "homepage": "https://github.com/2sem/coinone-api-cli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2sem/coinone-api-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/2sem/coinone-api-cli/issues"
+  },
   "type": "module",
   "bin": {
     "coinone": "./dist/bin/coinone.js"
