@@ -27,6 +27,15 @@ coinone --help
 coinone doctor --json
 ```
 
+### Install with Homebrew (macOS)
+
+```bash
+brew tap 2sem/tap
+brew install coinone
+coinone --help
+coinone doctor --json
+```
+
 ### Local development install
 
 ```bash
@@ -107,6 +116,13 @@ Reinstall the latest published package:
 
 ```bash
 npm install -g coinone-api-cli
+```
+
+### If you installed with Homebrew
+
+```bash
+brew update
+brew upgrade coinone
 ```
 
 ### If you installed from the Git repository

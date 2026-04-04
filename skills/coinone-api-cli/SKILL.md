@@ -14,7 +14,7 @@ Activate this skill when the user wants to:
 - inspect safe read-only private API data with env-based auth
 - script Coinone queries for developers or AI agents
 - debug or demonstrate this repository's CLI behavior
-- use Git-based installation or local execution examples
+- use npm, Homebrew, Git-based installation, or local execution examples
 
 ## Repo and CLI Discovery
 
@@ -116,6 +116,23 @@ npm run cli -- doctor --json
 coinone doctor --json
 ```
 
+### npm installation
+
+```bash
+npm install -g coinone-api-cli
+coinone --help
+coinone doctor --json
+```
+
+### Homebrew installation
+
+```bash
+brew tap 2sem/tap
+brew install coinone
+coinone --help
+coinone doctor --json
+```
+
 ### Private read-only examples
 
 ```bash
@@ -129,6 +146,17 @@ npm run cli -- orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:0
 ```bash
 npm install -g git+https://github.com/2sem/coinone-api-cli.git
 coinone --help
+```
+
+### Update commands
+
+```bash
+# npm
+npm install -g coinone-api-cli
+
+# Homebrew
+brew update
+brew upgrade coinone
 ```
 
 ## Output and Parsing Guidance
@@ -160,6 +188,10 @@ coinone --help
   - compare `npm bin -g` with your shell `PATH`
   - use `coinone doctor` once the binary is reachable
   - remember that npm global bin paths vary across nvm, Homebrew, fnm, Volta, and system Node installs
+- Homebrew install troubleshooting:
+  - run `brew tap 2sem/tap`
+  - run `brew reinstall coinone`
+  - verify with `coinone --version` and `coinone doctor --json`
 - Timeout/network failures:
   - retry with `--timeout <ms>` adjusted upward
   - check network reachability to the Coinone API
