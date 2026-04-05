@@ -211,6 +211,13 @@ coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z -
 
 WARNING: `orders place --confirm live` and `orders cancel --confirm live` can submit real account changes immediately. Prefer `--dry-run` first, verify the pair, side, price, and quantity, and only then run the live command.
 
+`orders place` now performs market preflight validation before returning dry-run success or sending a live order. The CLI fetches market metadata and fails fast for invalid limit orders such as:
+
+- below-minimum order notional (`price * qty < min_order_amount`)
+- unsupported order type for the pair
+- trading disabled or maintenance-active markets
+- price and quantity outside Coinone min/max bounds
+
 ```bash
 # local validation only; no Coinone request is sent
 coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run
@@ -303,6 +310,13 @@ coinone doctor
 coinone auth status
 ```
 
+If you keep credentials in a local `.env` file, load it into your shell before running the built CLI:
+
+```bash
+set -a && source .env && set +a
+node dist/bin/coinone.js doctor
+```
+
 Signing behavior for private commands:
 
 - POST-only requests
@@ -319,6 +333,33 @@ Safety notes:
 - `coinone orders place` requires either `--dry-run` or `--confirm live`
 - `coinone orders cancel` is live-only and always requires `--confirm live`
 - run a dry run before any live order placement whenever possible
+- when working inside the repo, prefer `npm run cli -- <command>` or `node dist/bin/coinone.js <command>`; do not run `node src/bin/coinone.ts` directly with plain Node
+
+### AI agent workflow
+
+For agent-driven trading workflows, use this sequence:
+
+```mermaid
+flowchart TD
+  A[Load env credentials] --> B[Run doctor]
+  B --> C[Fetch market metadata if needed]
+  C --> D[Run orders place --dry-run]
+  D --> E{Validation passes?}
+  E -- No --> F[Stop and surface the exact constraint]
+  E -- Yes --> G[Run orders place --confirm live]
+  G --> H[Check orders get or orders active]
+  H --> I[Cancel if cleanup is required]
+```
+
+Suggested commands:
+
+```bash
+set -a && source .env && set +a
+node dist/bin/coinone.js doctor
+node dist/bin/coinone.js --json markets get usdc --quote krw
+node dist/bin/coinone.js --json orders place --quote krw --target usdc --side buy --type limit --price 1519 --qty 4 --dry-run
+node dist/bin/coinone.js --json orders place --quote krw --target usdc --side buy --type limit --price 1519 --qty 4 --confirm live
+```
 
 Private fee examples:
 
