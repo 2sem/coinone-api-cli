@@ -1,6 +1,6 @@
 {
   "name": "coinone-api-cli",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Developer-friendly CLI for Coinone public APIs.",
   "homepage": "https://github.com/2sem/coinone-api-cli",
   "repository": {
