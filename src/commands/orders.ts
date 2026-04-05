@@ -13,6 +13,7 @@ import type {
   CompletedOrdersResponse,
   EmitResult,
   JsonRecord,
+  Market,
   OrderDetailEntry,
   OrderDetailResponse,
   PlaceOrderResponse
@@ -90,6 +91,147 @@ function normalizeLimitOrderType(value: string): 'limit' {
   return orderType;
 }
 
+interface ParsedDecimal {
+  raw: string;
+  units: bigint;
+  scale: number;
+}
+
+function parseDecimal(value: string, fieldName: string): ParsedDecimal {
+  const trimmed = value.trim();
+
+  if (!/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    throw new CoinoneCliError(`Invalid ${fieldName} decimal string.`, {
+      causeHint: `Pass \`--${fieldName}\` as digits with an optional decimal fraction.`
+    });
+  }
+
+  const [integerPart, fractionPart = ''] = trimmed.split('.');
+  const normalizedFraction = fractionPart.replace(/0+$/, '');
+  const digits = `${integerPart}${normalizedFraction}`.replace(/^0+(?=\d)/, '') || '0';
+
+  return {
+    raw: trimmed,
+    units: BigInt(digits),
+    scale: normalizedFraction.length
+  };
+}
+
+function formatDecimal(value: ParsedDecimal): string {
+  if (value.scale === 0) {
+    return value.units.toString();
+  }
+
+  const negative = value.units < 0n;
+  const digits = (negative ? -value.units : value.units).toString().padStart(value.scale + 1, '0');
+  const integerPart = digits.slice(0, -value.scale) || '0';
+  const fractionPart = digits.slice(-value.scale).replace(/0+$/, '');
+
+  return `${negative ? '-' : ''}${integerPart}${fractionPart ? `.${fractionPart}` : ''}`;
+}
+
+function compareDecimals(left: ParsedDecimal, right: ParsedDecimal): number {
+  const scale = Math.max(left.scale, right.scale);
+  const leftUnits = left.units * 10n ** BigInt(scale - left.scale);
+  const rightUnits = right.units * 10n ** BigInt(scale - right.scale);
+
+  if (leftUnits < rightUnits) {
+    return -1;
+  }
+
+  if (leftUnits > rightUnits) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function multiplyDecimals(left: ParsedDecimal, right: ParsedDecimal): ParsedDecimal {
+  return {
+    raw: `${left.raw}*${right.raw}`,
+    units: left.units * right.units,
+    scale: left.scale + right.scale
+  };
+}
+
+function validateMinDecimal(value: ParsedDecimal, minimum: string, label: string, pair: string): void {
+  const minimumValue = parseDecimal(minimum, label);
+
+  if (minimumValue.units === 0n) {
+    return;
+  }
+
+  if (compareDecimals(value, minimumValue) < 0) {
+    throw new CoinoneCliError(`Order ${label} is below the minimum for ${pair}.`, {
+      causeHint: `Use --${label} at least ${formatDecimal(minimumValue)}.`
+    });
+  }
+}
+
+function validateMaxDecimal(value: ParsedDecimal, maximum: string, label: string, pair: string): void {
+  const maximumValue = parseDecimal(maximum, label);
+
+  if (maximumValue.units === 0n) {
+    return;
+  }
+
+  if (compareDecimals(value, maximumValue) > 0) {
+    throw new CoinoneCliError(`Order ${label} is above the maximum for ${pair}.`, {
+      causeHint: `Use --${label} at most ${formatDecimal(maximumValue)}.`
+    });
+  }
+}
+
+function validatePlaceOrderAgainstMarket(order: PlaceOrderRequest, market: Market): void {
+  const pair = marketPair(toCode(order.targetCurrency), toCode(order.quoteCurrency));
+  const price = parseDecimal(order.price, 'price');
+  const qty = parseDecimal(order.qty, 'qty');
+
+  if (price.units <= 0n) {
+    throw new CoinoneCliError('Price must be greater than zero.', {
+      causeHint: 'Pass `--price` as a positive decimal string.'
+    });
+  }
+
+  if (qty.units <= 0n) {
+    throw new CoinoneCliError('Quantity must be greater than zero.', {
+      causeHint: 'Pass `--qty` as a positive decimal string.'
+    });
+  }
+
+  if (!market.order_types.includes(order.orderType)) {
+    throw new CoinoneCliError(`Limit orders are not available for ${pair}.`, {
+      causeHint: `Coinone reports supported order types: ${market.order_types.join(', ') || 'none'}.`
+    });
+  }
+
+  if (market.trade_status !== 1) {
+    throw new CoinoneCliError(`Trading is not enabled for ${pair}.`, {
+      causeHint: `Coinone market trade_status is ${market.trade_status}.`
+    });
+  }
+
+  if (market.maintenance_status !== 0) {
+    throw new CoinoneCliError(`Market ${pair} is under maintenance.`, {
+      causeHint: `Coinone market maintenance_status is ${market.maintenance_status}.`
+    });
+  }
+
+  validateMinDecimal(price, market.min_price, 'price', pair);
+  validateMaxDecimal(price, market.max_price, 'price', pair);
+  validateMinDecimal(qty, market.min_qty, 'qty', pair);
+  validateMaxDecimal(qty, market.max_qty, 'qty', pair);
+
+  const notional = multiplyDecimals(price, qty);
+  const minimumOrderAmount = parseDecimal(market.min_order_amount, 'min order amount');
+
+  if (compareDecimals(notional, minimumOrderAmount) < 0) {
+    throw new CoinoneCliError(`Order notional is below the market minimum for ${pair}.`, {
+      causeHint: `price * qty = ${formatDecimal(notional)}, but Coinone requires at least ${formatDecimal(minimumOrderAmount)}.`
+    });
+  }
+}
+
 function validatePlaceSafetyMode(options: { dryRun?: boolean; confirm?: string }): { dryRun: boolean } {
   const confirm = options.confirm?.trim().toLowerCase();
 
@@ -126,6 +268,18 @@ function validateCancelConfirmation(confirm: string | undefined): void {
       causeHint: 'Use `--confirm live` to cancel an order.'
     });
   }
+}
+
+function expectPlaceOrderMarket(markets: Market[], order: PlaceOrderRequest): Market {
+  const market = markets[0];
+
+  if (!market) {
+    throw new CoinoneCliError('Coinone returned no market metadata for this order.', {
+      causeHint: `Check whether ${marketPair(toCode(order.targetCurrency), toCode(order.quoteCurrency))} is a valid trading pair.`
+    });
+  }
+
+  return market;
 }
 
 export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResult): Command {
@@ -248,6 +402,10 @@ export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResul
         postOnly: Boolean(options.postOnly),
         userOrderId: options.userOrderId
       };
+      const marketResponse = await client.getMarket(orderRequest.quoteCurrency, orderRequest.targetCurrency);
+      const market = expectPlaceOrderMarket(marketResponse.markets, orderRequest);
+
+      validatePlaceOrderAgainstMarket(orderRequest, market);
 
       if (dryRun) {
         const result = buildPlaceOrderDryRunResult(orderRequest);

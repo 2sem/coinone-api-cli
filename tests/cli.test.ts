@@ -356,10 +356,83 @@ describe('runCli', () => {
     expect(stderr.read()).toContain('Pass both `--quote` and `--target`');
   });
 
-  it('validates order placement locally in dry-run mode without calling fetch', async () => {
+  it('fails dry-run order placement locally when the market minimum order amount is not met', async () => {
     const stdout = createWritable();
     const stderr = createWritable();
-    let fetchCalled = false;
+    const fetchCalls: string[] = [];
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        'orders',
+        'place',
+        '--quote',
+        'krw',
+        '--target',
+        'usdc',
+        '--side',
+        'buy',
+        '--type',
+        'limit',
+        '--price',
+        '1519',
+        '--qty',
+        '1',
+        '--dry-run'
+      ],
+      {
+        stdout,
+        stderr,
+        fetchImplementation: async (input) => {
+          const url = String(input);
+          fetchCalls.push(url);
+
+          if (url.endsWith('/public/v2/markets/krw/usdc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                server_time: 1,
+                markets: [
+                  {
+                    quote_currency: 'krw',
+                    target_currency: 'usdc',
+                    qty_unit: '0.1',
+                    max_order_amount: '1000000000',
+                    max_price: '10000000',
+                    max_qty: '1000000',
+                    min_order_amount: '5000',
+                    min_price: '1',
+                    min_qty: '0.1',
+                    order_book_units: ['1'],
+                    maintenance_status: 0,
+                    trade_status: 1,
+                    order_types: ['limit']
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
+          throw new Error('should not be called');
+        }
+      }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.read()).toBe('');
+    expect(fetchCalls).toEqual(['https://api.coinone.co.kr/public/v2/markets/krw/usdc']);
+    expect(stderr.read()).toContain('Order notional is below the market minimum for USDC/KRW');
+    expect(stderr.read()).toContain('price * qty = 1519');
+    expect(stderr.read()).toContain('at least 5000');
+  });
+
+  it('validates order placement locally in dry-run mode after market preflight', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+    const fetchCalls: string[] = [];
 
     const exitCode = await runCli(
       [
@@ -379,26 +452,137 @@ describe('runCli', () => {
         '--price',
         '1000',
         '--qty',
-        '0.01',
+        '5',
         '--dry-run'
       ],
       {
         stdout,
         stderr,
-        fetchImplementation: async () => {
-          fetchCalled = true;
+        fetchImplementation: async (input) => {
+          const url = String(input);
+          fetchCalls.push(url);
+
+          if (url.endsWith('/public/v2/markets/krw/btc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                server_time: 1,
+                markets: [
+                  {
+                    quote_currency: 'krw',
+                    target_currency: 'btc',
+                    qty_unit: '0.0001',
+                    max_order_amount: '1000000000',
+                    max_price: '10000000',
+                    max_qty: '1000000',
+                    min_order_amount: '5000',
+                    min_price: '1',
+                    min_qty: '0.0001',
+                    order_book_units: ['1'],
+                    maintenance_status: 0,
+                    trade_status: 1,
+                    order_types: ['limit']
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
           throw new Error('should not be called');
         }
       }
     );
 
     expect(exitCode).toBe(0);
-    expect(fetchCalled).toBe(false);
+    expect(fetchCalls).toEqual(['https://api.coinone.co.kr/public/v2/markets/krw/btc']);
     expect(stderr.read()).toBe('');
     expect(stdout.read()).toContain('"action": "place"');
     expect(stdout.read()).toContain('"dryRun": true');
     expect(stdout.read()).toContain('"submitted": false');
     expect(stdout.read()).toContain('"validation": "passed"');
+  });
+
+  it('fails live order placement locally before API submit when market constraints reject the order', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+    const fetchCalls: string[] = [];
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        'orders',
+        'place',
+        '--quote',
+        'krw',
+        '--target',
+        'usdc',
+        '--side',
+        'buy',
+        '--type',
+        'limit',
+        '--price',
+        '1519',
+        '--qty',
+        '1',
+        '--confirm',
+        'live'
+      ],
+      {
+        env: {
+          COINONE_ACCESS_TOKEN: 'token',
+          COINONE_SECRET_KEY: 'secret'
+        },
+        stdout,
+        stderr,
+        fetchImplementation: async (input) => {
+          const url = String(input);
+          fetchCalls.push(url);
+
+          if (url.endsWith('/public/v2/markets/krw/usdc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                server_time: 1,
+                markets: [
+                  {
+                    quote_currency: 'krw',
+                    target_currency: 'usdc',
+                    qty_unit: '0.1',
+                    max_order_amount: '1000000000',
+                    max_price: '10000000',
+                    max_qty: '1000000',
+                    min_order_amount: '5000',
+                    min_price: '1',
+                    min_qty: '0.1',
+                    order_book_units: ['1'],
+                    maintenance_status: 0,
+                    trade_status: 1,
+                    order_types: ['limit']
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
+          if (url.endsWith('/v2.1/order')) {
+            throw new Error('private submit should not be called');
+          }
+
+          throw new Error('unexpected request');
+        }
+      }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.read()).toBe('');
+    expect(fetchCalls).toEqual(['https://api.coinone.co.kr/public/v2/markets/krw/usdc']);
+    expect(stderr.read()).toContain('Order notional is below the market minimum for USDC/KRW');
+    expect(stderr.read()).toContain('price * qty = 1519');
   });
 
   it('requires an explicit safety mode for order placement', async () => {
@@ -574,7 +758,7 @@ describe('runCli', () => {
         '--price',
         '1000',
         '--qty',
-        '0.01',
+        '5',
         '--post-only',
         '--confirm',
         'live'
@@ -586,24 +770,59 @@ describe('runCli', () => {
         },
         stdout,
         stderr,
-        fetchImplementation: async () =>
-          new Response(
-            JSON.stringify({
-              result: 'success',
-              error_code: '0',
-              order_id: 'new-order-1',
-              quote_currency: 'krw',
-              target_currency: 'btc',
-              side: 'buy',
-              order_type: 'limit',
-              price: '1000',
-              qty: '0.01',
-              post_only: true,
-              user_order_id: 'client-1',
-              submitted_at: 1767225600000
-            }),
-            { status: 200, headers: { 'content-type': 'application/json' } }
-          )
+        fetchImplementation: async (input) => {
+          const url = String(input);
+
+          if (url.endsWith('/public/v2/markets/krw/btc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                server_time: 1,
+                markets: [
+                  {
+                    quote_currency: 'krw',
+                    target_currency: 'btc',
+                    qty_unit: '0.0001',
+                    max_order_amount: '1000000000',
+                    max_price: '10000000',
+                    max_qty: '1000000',
+                    min_order_amount: '5000',
+                    min_price: '1',
+                    min_qty: '0.0001',
+                    order_book_units: ['1'],
+                    maintenance_status: 0,
+                    trade_status: 1,
+                    order_types: ['limit']
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
+          if (url.endsWith('/v2.1/order')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                order_id: 'new-order-1',
+                quote_currency: 'krw',
+                target_currency: 'btc',
+                side: 'buy',
+                order_type: 'limit',
+                price: '1000',
+                qty: '5',
+                post_only: true,
+                user_order_id: 'client-1',
+                submitted_at: 1767225600000
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
+          throw new Error('unexpected request');
+        }
       }
     );
 
