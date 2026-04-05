@@ -1,6 +1,6 @@
 ---
 name: coinone-api-cli
-description: Use the local Coinone CLI to query Coinone public APIs and safe read-only private APIs from this repository. Prefer this skill when the goal is to fetch market data, balances, fees, or order history through the CLI rather than calling HTTP endpoints directly.
+description: Use the local Coinone CLI to query Coinone public APIs and private APIs from this repository, including guarded live order placement when explicitly requested. Prefer this skill when the goal is to work through the CLI rather than calling Coinone HTTP endpoints directly.
 ---
 
 Use this skill when the user wants to work with Coinone data through the CLI in this repository.
@@ -12,6 +12,7 @@ Activate this skill when the user wants to:
 - diagnose a global install or runtime setup problem with the CLI
 - call Coinone public APIs from the command line
 - inspect safe read-only private API data with env-based auth
+- place or cancel guarded orders through the CLI when the user explicitly asks for a real trading action
 - script Coinone queries for developers or AI agents
 - debug or demonstrate this repository's CLI behavior
 - use npm, Homebrew, Git-based installation, or local execution examples
@@ -30,6 +31,8 @@ Primary execution forms:
 - after build: `node dist/bin/coinone.js <command>`
 - after Git/global install: `coinone <command>`
 
+Do not run `node src/bin/coinone.ts` directly with plain Node. That entrypoint is for the TypeScript project workflow, not raw Node execution.
+
 ## Preferred Execution Strategy
 
 Use commands in this order:
@@ -47,6 +50,12 @@ For first contact or troubleshooting, probe in this order:
 2. `npm run cli -- --help`
 3. `npm run cli -- markets list --json`
 4. `npm run cli -- auth status --json`
+
+If credentials live in a local `.env` file and no dotenv loader is installed, load them first with:
+
+```bash
+set -a && source .env && set +a
+```
 
 ## Core Usage Rules
 
@@ -88,6 +97,11 @@ For first contact or troubleshooting, probe in this order:
 - `coinone orders active [--quote <quoteCurrency>] [--target <targetCurrency>] [--type <type>]`
 - `coinone orders get <orderId> --quote <quoteCurrency> --target <targetCurrency> [--user-order-id <id>]`
 - `coinone orders completed --from <timestamp-ms|iso> --to <timestamp-ms|iso> [--size <1-100>] [--to-trade-id <id>] [--quote <quoteCurrency> --target <targetCurrency>]`
+
+### Guarded private writes
+
+- `coinone orders place --quote <quoteCurrency> --target <targetCurrency> --side <buy|sell> --type limit --price <string> --qty <string> [--post-only] [--user-order-id <id>] (--dry-run | --confirm live)`
+- `coinone orders cancel --order-id <id> --quote <quoteCurrency> --target <targetCurrency> [--user-order-id <id>] --confirm live`
 
 ## Recommended Patterns
 
@@ -141,6 +155,17 @@ npm run cli -- fees get --quote krw --target btc --json
 npm run cli -- orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --json
 ```
 
+### Guarded write examples
+
+```bash
+npm run cli -- doctor --json
+npm run cli -- --json markets get usdc --quote krw
+npm run cli -- --json orders place --quote krw --target usdc --side buy --type limit --price 1519 --qty 4 --dry-run
+npm run cli -- --json orders place --quote krw --target usdc --side buy --type limit --price 1519 --qty 4 --confirm live
+npm run cli -- --json orders get <orderId> --quote krw --target usdc
+npm run cli -- --json orders cancel --order-id <orderId> --quote krw --target usdc --confirm live
+```
+
 ### Git-based installation
 
 ```bash
@@ -170,8 +195,20 @@ brew upgrade coinone
 
 ## Safety and Validation
 
-- Do not attempt write-capable private trading actions through this skill.
-- Keep usage focused on public data and safe read-only private commands.
+- Never place or cancel a real order unless the user explicitly requests it.
+- For trading actions, always run this sequence unless the user explicitly says otherwise:
+  1. `doctor`
+  2. optional `markets get` to inspect pair metadata
+  3. `orders place --dry-run`
+  4. only then `orders place --confirm live`
+  5. `orders get` or `orders active`
+  6. `orders cancel --confirm live` if cleanup is needed
+- `orders place` performs market preflight validation before dry-run success or live submission.
+- The live order payload is aligned to Coinone's `/v2.1/order` contract:
+  - uppercase currencies
+  - uppercase `side`
+  - `type` for order type
+  - `post_only` included for limit orders
 - For private commands, fail clearly if env vars are missing instead of inventing credentials.
 - For completed orders, respect the CLI validation rules:
   - `--from` and `--to` are required
@@ -202,6 +239,10 @@ brew upgrade coinone
   - pass both `--quote` and `--target`, or omit both
 - Unexpected parsing need:
   - rerun with `--json`
+- Live order returns Coinone `107 Parameter error`:
+  - verify you are using the current built CLI or `npm run cli --`
+  - rerun `markets get` for the pair and confirm min/max constraints
+  - ensure you are not bypassing preflight with stale build output
 
 ## Verification Commands
 
