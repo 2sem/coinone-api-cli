@@ -348,10 +348,10 @@ describe('CoinoneClient', () => {
       'X-COINONE-SIGNATURE': expect.any(String)
     });
     expect(JSON.parse(String(requestInit?.body))).toMatchObject({
-      quote_currency: 'krw',
-      target_currency: 'btc',
-      side: 'buy',
-      order_type: 'limit',
+      quote_currency: 'KRW',
+      target_currency: 'BTC',
+      side: 'BUY',
+      type: 'LIMIT',
       price: '1000',
       qty: '0.01',
       post_only: true,

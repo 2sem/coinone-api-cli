@@ -155,13 +155,13 @@ export class CoinoneClient {
     }
     async placeOrder(order) {
         return this.postPrivateJson('/v2.1/order', {
-            quote_currency: order.quoteCurrency,
-            target_currency: order.targetCurrency,
-            side: order.side,
-            order_type: order.orderType,
+            quote_currency: order.quoteCurrency.toUpperCase(),
+            target_currency: order.targetCurrency.toUpperCase(),
+            side: order.side.toUpperCase(),
+            type: order.orderType.toUpperCase(),
             price: order.price,
             qty: order.qty,
-            ...(order.postOnly ? { post_only: true } : {}),
+            post_only: order.postOnly ?? true,
             ...(order.userOrderId ? { user_order_id: order.userOrderId } : {})
         });
     }
