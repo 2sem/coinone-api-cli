@@ -26,10 +26,16 @@ export function createFeesCommand(client, emitResult) {
     return command;
 }
 function buildFeeListResult(fees, raw) {
+    const displayRows = fees.map((fee) => ({
+        currency: fee.currency,
+        feeRate: formatFeeRateDisplay(fee.feeRate),
+        makerFeeRate: formatFeeRateDisplay(fee.makerFeeRate),
+        takerFeeRate: formatFeeRateDisplay(fee.takerFeeRate)
+    }));
     return {
         data: fees,
         raw,
-        renderTable: () => renderTable(fees, [
+        renderTable: () => renderTable(displayRows, [
             { key: 'currency', label: 'CURRENCY' },
             { key: 'feeRate', label: 'FEE RATE' },
             { key: 'makerFeeRate', label: 'MAKER' },
@@ -38,6 +44,9 @@ function buildFeeListResult(fees, raw) {
     };
 }
 function buildFeeGetResult(fee, raw) {
+    const displayFeeRate = formatFeeRateDisplay(fee.feeRate);
+    const displayMakerFeeRate = formatFeeRateDisplay(fee.makerFeeRate);
+    const displayTakerFeeRate = formatFeeRateDisplay(fee.takerFeeRate);
     return {
         data: fee,
         raw,
@@ -45,11 +54,25 @@ function buildFeeGetResult(fee, raw) {
             { field: 'Pair', value: fee.pair },
             { field: 'Quote currency', value: fee.quoteCurrency },
             { field: 'Target currency', value: fee.targetCurrency },
-            { field: 'Fee rate', value: fee.feeRate },
-            { field: 'Maker fee rate', value: fee.makerFeeRate },
-            { field: 'Taker fee rate', value: fee.takerFeeRate }
+            { field: 'Fee rate', value: displayFeeRate },
+            { field: 'Maker fee rate', value: displayMakerFeeRate },
+            { field: 'Taker fee rate', value: displayTakerFeeRate }
         ])
     };
+}
+function formatFeeRateDisplay(value) {
+    if (value === undefined) {
+        return undefined;
+    }
+    const rate = Number(value);
+    if (!Number.isFinite(rate)) {
+        return value;
+    }
+    const percent = rate * 100;
+    if (percent === 0) {
+        return '0%';
+    }
+    return `${percent.toFixed(4).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`;
 }
 function normalizeFeeEntries(response) {
     const fees = response.fees ?? response.fee_rates;
@@ -72,19 +95,22 @@ function normalizeFeeEntries(response) {
     return [];
 }
 function normalizeFeeEntry(entry) {
-    const currency = readString(entry.currency);
+    const currency = readString(entry.currency) ?? readString(entry.target_currency);
     if (!currency) {
         return undefined;
     }
     return {
         currency: toCode(currency),
         feeRate: readString(entry.fee_rate) ?? readString(entry.feeRate),
-        makerFeeRate: readString(entry.maker_fee_rate) ?? readString(entry.makerFeeRate),
-        takerFeeRate: readString(entry.taker_fee_rate) ?? readString(entry.takerFeeRate)
+        makerFeeRate: readString(entry.maker_fee_rate) ?? readString(entry.makerFeeRate) ?? readString(entry.maker),
+        takerFeeRate: readString(entry.taker_fee_rate) ?? readString(entry.takerFeeRate) ?? readString(entry.taker)
     };
 }
 function normalizeTradeFee(response, defaultQuoteCurrency, defaultTargetCurrency) {
-    const nested = readTradeFeeRecord(response.fee) ?? readTradeFeeRecord(response.trade_fee) ?? {};
+    const nested = readTradeFeeRecord(response.fee) ??
+        readTradeFeeRecord(response.trade_fee) ??
+        readTradeFeeCollectionEntry(response.fee_rates) ??
+        {};
     const quoteCurrency = readString(response.quote_currency) ??
         readString(nested.quote_currency) ??
         defaultQuoteCurrency;
@@ -96,9 +122,25 @@ function normalizeTradeFee(response, defaultQuoteCurrency, defaultTargetCurrency
         quoteCurrency: toCode(quoteCurrency),
         targetCurrency: toCode(targetCurrency),
         feeRate: readString(response.fee_rate) ?? readString(nested.fee_rate),
-        makerFeeRate: readString(response.maker_fee_rate) ?? readString(nested.maker_fee_rate),
-        takerFeeRate: readString(response.taker_fee_rate) ?? readString(nested.taker_fee_rate)
+        makerFeeRate: readString(response.maker_fee_rate) ??
+            readString(nested.maker_fee_rate) ??
+            readString(response.maker) ??
+            readString(nested.maker),
+        takerFeeRate: readString(response.taker_fee_rate) ??
+            readString(nested.taker_fee_rate) ??
+            readString(response.taker) ??
+            readString(nested.taker)
     };
+}
+function readTradeFeeCollectionEntry(value) {
+    if (Array.isArray(value)) {
+        return value.find((entry) => isRecord(entry));
+    }
+    if (isRecord(value)) {
+        const firstEntry = Object.values(value).find((entry) => isRecord(entry));
+        return firstEntry;
+    }
+    return undefined;
 }
 function readTradeFeeRecord(value) {
     return isRecord(value) ? value : undefined;

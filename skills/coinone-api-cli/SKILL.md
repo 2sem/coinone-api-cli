@@ -152,6 +152,7 @@ coinone doctor --json
 ```bash
 npm run cli -- balances list --json
 npm run cli -- fees get --quote krw --target btc --json
+npm run cli -- fees get --quote krw --target usdc --output raw
 npm run cli -- orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --json
 ```
 
@@ -192,6 +193,8 @@ brew upgrade coinone
 - prefer normalized JSON fields over reverse-engineering Coinone raw payloads unless the task specifically requires raw output
 - if a downstream step needs reliable parsing, rerun the command with `--json`
 - for install/runtime debugging, use `coinone doctor --json` first because it does not require network access in the MVP
+- fee table output renders percentage strings for humans, so Coinone fee values like `0.0` are shown as `0%`
+- fee JSON output keeps normalized raw strings such as `makerFeeRate: "0.0"` and `takerFeeRate: "0.0"`
 
 ## Safety and Validation
 
@@ -210,6 +213,7 @@ brew upgrade coinone
   - `type` for order type
   - `post_only` included for limit orders
 - For private commands, fail clearly if env vars are missing instead of inventing credentials.
+- `fees list` and `fees get` require the Coinone **고객 정보** private API permission.
 - For completed orders, respect the CLI validation rules:
   - `--from` and `--to` are required
   - max window is 90 days
@@ -221,6 +225,9 @@ brew upgrade coinone
   - run `npm run cli -- doctor --json`
   - or `npm run cli -- auth status --json`
   - expect missing `COINONE_ACCESS_TOKEN` and/or `COINONE_SECRET_KEY`
+- `coinone fees ...` returns `Invalid API permission` / code `40`:
+  - confirm the API key has Coinone **고객 정보** permission enabled
+  - rerun with `--output raw` if you need to inspect the exact upstream fee payload
 - Global install works but `coinone` is not found:
   - compare `npm bin -g` with your shell `PATH`
   - use `coinone doctor` once the binary is reachable

@@ -207,6 +207,13 @@ coinone fees get --quote krw --target btc
 coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --json
 ```
 
+Fee command notes:
+
+- `coinone fees list` and `coinone fees get` use Coinone private API permissions under **고객 정보**.
+- If your API key does not include that permission, Coinone returns `Invalid API permission` with error code `40`.
+- Table output shows fee rates as percentages for humans, so a raw API value like `"0.0"` is displayed as `0%`.
+- `--json` keeps the normalized raw string values for scripting, for example `"makerFeeRate": "0.0"`.
+
 ### Private order writes with safety rails
 
 WARNING: `orders place --confirm live` and `orders cancel --confirm live` can submit real account changes immediately. Prefer `--dry-run` first, verify the pair, side, price, and quantity, and only then run the live command.
@@ -367,6 +374,17 @@ Private fee examples:
 coinone fees list
 coinone fees get --quote krw --target btc
 coinone fees get --quote krw --target btc --json
+coinone fees get --quote krw --target usdc --output raw
+```
+
+Example zero-fee response flow:
+
+```mermaid
+flowchart TD
+  A[coinone fees get --quote krw --target usdc] --> B[Coinone private fee API]
+  B --> C[raw response fee_rates maker=0.0 taker=0.0]
+  C --> D[table output shows 0%]
+  C --> E[json output keeps 0.0 strings]
 ```
 
 ## Notes and assumptions
