@@ -320,6 +320,83 @@ describe('runCli', () => {
     expect(stdout.read()).toContain('"feeRate": "0.002"');
   });
 
+  it('prints pair-specific trade fee in json mode when Coinone returns fee_rates maker/taker fields', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      ['node', 'coinone', '--json', 'fees', 'get', '--quote', 'krw', '--target', 'usdc'],
+      {
+        env: {
+          COINONE_ACCESS_TOKEN: 'token',
+          COINONE_SECRET_KEY: 'secret'
+        },
+        stdout,
+        stderr,
+        fetchImplementation: async () =>
+          new Response(
+            JSON.stringify({
+              result: 'success',
+              error_code: '0',
+              fee_rates: [
+                {
+                  quote_currency: 'KRW',
+                  target_currency: 'USDC',
+                  maker: '0.0',
+                  taker: '0.0'
+                }
+              ]
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(stdout.read()).toContain('"pair": "USDC/KRW"');
+    expect(stdout.read()).toContain('"makerFeeRate": "0.0"');
+    expect(stdout.read()).toContain('"takerFeeRate": "0.0"');
+  });
+
+  it('renders zero pair-specific trade fees as 0% in table mode', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      ['node', 'coinone', 'fees', 'get', '--quote', 'krw', '--target', 'usdc'],
+      {
+        env: {
+          COINONE_ACCESS_TOKEN: 'token',
+          COINONE_SECRET_KEY: 'secret'
+        },
+        stdout,
+        stderr,
+        fetchImplementation: async () =>
+          new Response(
+            JSON.stringify({
+              result: 'success',
+              error_code: '0',
+              fee_rates: [
+                {
+                  quote_currency: 'KRW',
+                  target_currency: 'USDC',
+                  maker: '0.0',
+                  taker: '0.0'
+                }
+              ]
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(stdout.read()).toContain('Maker fee rate   0%');
+    expect(stdout.read()).toContain('Taker fee rate   0%');
+  });
+
   it('returns a clear error for incomplete completed order pair filters', async () => {
     const stdout = createWritable();
     const stderr = createWritable();

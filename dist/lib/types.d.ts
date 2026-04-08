@@ -139,9 +139,13 @@ export interface BalancesResponse extends CoinoneEnvelope, JsonRecord {
 }
 export interface TradeFeeEntry extends JsonRecord {
     currency?: string;
+    quote_currency?: string;
+    target_currency?: string;
     fee_rate?: string;
     maker_fee_rate?: string;
     taker_fee_rate?: string;
+    maker?: string;
+    taker?: string;
 }
 export interface TradeFeesResponse extends CoinoneEnvelope, JsonRecord {
     fees?: TradeFeeEntry[] | Record<string, TradeFeeEntry | string | number | undefined>;
@@ -152,9 +156,12 @@ export interface TradeFeeResponse extends CoinoneEnvelope, JsonRecord {
     target_currency?: string;
     fee?: TradeFeeEntry;
     trade_fee?: TradeFeeEntry;
+    fee_rates?: TradeFeeEntry[] | Record<string, TradeFeeEntry | string | number | undefined>;
     fee_rate?: string;
     maker_fee_rate?: string;
     taker_fee_rate?: string;
+    maker?: string;
+    taker?: string;
 }
 export interface ActiveOrderEntry extends JsonRecord {
     order_id?: string;
