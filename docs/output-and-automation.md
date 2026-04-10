@@ -1,21 +1,23 @@
-# Output and Automation
+# 출력과 자동화
 
-## Output modes
+자동화나 에이전트 연동이 목적이라면 사람이 읽기 좋은 기본 출력보다 `--json`과 timeout 제어를 우선적으로 고려하는 것이 좋습니다.
 
-- default: concise table or summary view
-- `--json`: normalized JSON for automation
-- `--output json`: same as `--json`
-- `--output raw`: pretty-printed raw Coinone API response
+## 출력 모드
 
-## Automation recommendations
+- 기본값: 간결한 표 또는 요약 뷰
+- `--json`: 자동화를 위한 정규화된 JSON
+- `--output json`: `--json`과 동일
+- `--output raw`: Coinone API 원본 응답을 보기 좋게 출력
 
-- prefer `--json` for stable machine-readable output
-- use `--timeout <ms>` in CI or agent loops to fail fast on slow requests
-- use `--base-url <url>` for mocked APIs, replay servers, or local integration tests
-- keep private credentials in environment variables instead of inline flags or prompts
-- for team-wide sharing, prefer Git-based installation over npm package publishing if you do not want to manage an npm package
+## 자동화 권장 사항
 
-## Examples
+- 안정적인 기계 판독 출력을 위해 `--json`을 우선 사용하세요
+- CI나 에이전트 루프에서는 `--timeout <ms>`로 느린 요청을 빠르게 실패 처리하세요
+- mock API, replay 서버, 로컬 통합 테스트에는 `--base-url <url>`을 사용하세요
+- 개인 인증 정보는 inline 플래그나 프롬프트 대신 환경 변수로 관리하세요
+- npm 패키지 운영 계획이 없다면 팀 공유용 설치는 Git 기반 설치가 더 단순할 수 있습니다
+
+## 예시
 
 ```bash
 coinone doctor --json

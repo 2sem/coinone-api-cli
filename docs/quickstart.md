@@ -1,6 +1,6 @@
-# Quickstart
+# 빠른 시작
 
-## Public market data
+## 공개 시세 데이터 조회
 
 ```bash
 coinone markets list
@@ -9,7 +9,7 @@ coinone trades list btc --quote krw --size 50 --json
 coinone orderbook get btc --quote krw --size 10
 ```
 
-## Private read-only commands
+## 개인 조회 전용 명령어
 
 ```bash
 export COINONE_ACCESS_TOKEN="your-access-token"
@@ -22,25 +22,25 @@ coinone fees get --quote krw --target btc
 coinone orders completed --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --json
 ```
 
-## Private order writes with safety rails
+## 안전장치가 있는 개인 주문 명령
 
-`orders place --confirm live` and `orders cancel --confirm live` can trigger real account changes immediately. Prefer `--dry-run` first.
+`orders place --confirm live`와 `orders cancel --confirm live`는 실제 계정 상태를 즉시 바꿀 수 있습니다. 먼저 `--dry-run`으로 검증하는 것을 권장합니다.
 
 ```bash
-# local validation only; no Coinone request is sent
+# 로컬 검증만 수행하며 Coinone 요청은 보내지 않음
 coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run
 
-# real submission; requires explicit confirmation
+# 실제 주문 전송, 명시적 확인 필요
 coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --confirm live
 
-# optional post-only limit order
+# 선택적 post-only 지정가 주문
 coinone orders place --quote krw --target btc --side sell --type limit --price 1200 --qty 0.01 --post-only --confirm live
 
-# real cancellation; live-only in the MVP
+# 실제 취소, 현재 MVP에서는 live 확인 필수
 coinone orders cancel --order-id 12345 --quote krw --target btc --confirm live
 ```
 
-## Script-friendly examples
+## 자동화 친화적인 예시
 
 ```bash
 coinone doctor --json
@@ -54,16 +54,16 @@ last_price=$(coinone --json ticker get btc --quote krw | jq -r '.last')
 echo "$last_price"
 ```
 
-## Recommended private workflow
+## 권장 개인 API 사용 흐름
 
 ```mermaid
 flowchart TD
-  A[Load env credentials] --> B[Run doctor]
-  B --> C[Fetch market metadata if needed]
-  C --> D[Run orders place --dry-run]
-  D --> E{Validation passes?}
-  E -- No --> F[Stop and surface the exact constraint]
-  E -- Yes --> G[Run orders place --confirm live]
-  G --> H[Check orders get or orders active]
-  H --> I[Cancel if cleanup is required]
+  A[환경 변수 로드] --> B[doctor 실행]
+  B --> C[필요 시 시장 메타데이터 조회]
+  C --> D[orders place --dry-run 실행]
+  D --> E{검증 통과 여부}
+  E -- 아니오 --> F[제약 조건을 확인하고 중단]
+  E -- 예 --> G[orders place --confirm live 실행]
+  G --> H[orders get 또는 orders active로 확인]
+  H --> I[정리가 필요하면 cancel 실행]
 ```

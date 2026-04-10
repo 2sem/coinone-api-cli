@@ -1,18 +1,18 @@
-# Commands
+# 명령어 개요
 
-For the source-of-truth command documentation, see the generated [Command Reference](./command-reference).
+실제 CLI 구조를 그대로 반영한 문서는 [명령어 레퍼런스](./command-reference)를 확인하세요. 이 페이지는 사람이 빠르게 훑어보기 좋은 요약 문서입니다.
 
-## Global options
+## 전역 옵션
 
-- `--json`: emit normalized JSON for scripts and agents
-- `--output <mode>`: choose `table`, `json`, or `raw`
-- `--base-url <url>`: point the CLI at a proxy, mock server, or alternate Coinone-compatible host
-- `--timeout <ms>`: set a request timeout in milliseconds for every API call in the command
-- `--color`: force colorized error output
+- `--json`: 스크립트와 에이전트를 위한 정규화된 JSON 출력
+- `--output <mode>`: `table`, `json`, `raw` 중 선택
+- `--base-url <url>`: 프록시, mock 서버, 대체 Coinone 호환 호스트 지정
+- `--timeout <ms>`: 모든 API 호출에 적용할 요청 timeout 지정
+- `--color`: 오류 출력에 컬러 강제 적용
 
-## Command groups
+## 명령 그룹
 
-### Public commands
+### 공개 명령어
 
 ```text
 coinone markets list
@@ -26,7 +26,7 @@ coinone trades list <targetCurrency> --quote <quoteCurrency> [--size <n>]
 coinone range-units get <targetCurrency> --quote <quoteCurrency>
 ```
 
-### Private read commands
+### 개인 조회 명령어
 
 ```text
 coinone doctor
@@ -40,14 +40,14 @@ coinone orders get <orderId> --quote <quoteCurrency> --target <targetCurrency> [
 coinone orders completed --from <timestamp-ms|iso> --to <timestamp-ms|iso> [--size <1-100>] [--to-trade-id <id>] [--quote <quoteCurrency> --target <targetCurrency>]
 ```
 
-### Private write commands
+### 개인 쓰기 명령어
 
 ```text
 coinone orders place --quote <quoteCurrency> --target <targetCurrency> --side <buy|sell> --type limit --price <string> --qty <string> [--post-only] [--user-order-id <id>] (--dry-run | --confirm live)
 coinone orders cancel --order-id <id> --quote <quoteCurrency> --target <targetCurrency> [--user-order-id <id>] --confirm live
 ```
 
-## Validation notes
+## 검증 규칙 메모
 
 - `orderbook get --size`: one of `5`, `10`, `15`, `16`
 - `trades list --size`: one of `10`, `50`, `100`, `150`, `200`
@@ -57,13 +57,13 @@ coinone orders cancel --order-id <id> --quote <quoteCurrency> --target <targetCu
 - `orders place`: exactly one of `--dry-run` or `--confirm live` is required
 - `orders cancel`: `--confirm live` is always required in the MVP
 
-## Notable behavior
+## 알아두면 좋은 동작
 
-- `markets list` defaults to the `KRW` market because the public API requires a quote currency in the path while the requested CLI shape omits it
-- `ticker list` defaults to `KRW` when `--quote` is omitted because Coinone exposes quote-scoped ticker listing endpoints
-- private commands fail fast with a non-zero error when auth env vars are missing
+- `markets list`는 공개 API 경로에 quote currency가 필요하지만 CLI 형태에서는 생략되어 있으므로 기본값으로 `KRW`를 사용합니다
+- `ticker list`도 `--quote`가 없으면 기본값으로 `KRW`를 사용합니다
+- 개인 명령어는 인증 환경 변수가 없으면 즉시 non-zero exit로 실패합니다
 
-## Examples
+## 예시
 
 ```bash
 coinone doctor

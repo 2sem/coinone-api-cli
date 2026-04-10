@@ -1,8 +1,10 @@
-# Auth and Safety
+# 인증과 안전장치
 
-## Environment variables
+코인원 개인 API를 다룰 때는 인증 정보 관리와 실주문 보호 장치가 가장 중요합니다. 명령어 자체는 영어로 유지되지만, 운영 가이드는 한국어 기준으로 읽는 것이 안전합니다.
 
-Coinone private API v2.1 requests are signed with env-based credentials:
+## 환경 변수
+
+Coinone private API v2.1 요청은 환경 변수 기반 자격 증명으로 서명합니다.
 
 - `COINONE_ACCESS_TOKEN`
 - `COINONE_SECRET_KEY`
@@ -14,44 +16,44 @@ coinone doctor
 coinone auth status
 ```
 
-If you keep credentials in a local `.env` file, load it into your shell before running the built CLI:
+로컬 `.env` 파일에 자격 증명을 저장했다면, 빌드된 CLI를 실행하기 전에 셸에 먼저 로드하세요.
 
 ```bash
 set -a && source .env && set +a
 node dist/bin/coinone.js doctor
 ```
 
-## Signing behavior
+## 서명 동작
 
-- POST-only requests
-- request body includes `access_token` and a UUID v4 `nonce`
-- JSON body is Base64 encoded into `X-COINONE-PAYLOAD`
-- payload is signed with HMAC SHA512 into `X-COINONE-SIGNATURE`
+- POST 요청만 사용
+- 요청 바디에 `access_token`과 UUID v4 `nonce` 포함
+- JSON 바디를 Base64 인코딩해 `X-COINONE-PAYLOAD`에 전달
+- payload를 HMAC SHA512로 서명해 `X-COINONE-SIGNATURE`에 전달
 
-## Safety notes
+## 안전 수칙
 
-- `coinone doctor` is local-only install and env diagnostics; it never needs network access for the MVP
-- `coinone auth status` only validates local env configuration; it does not need to call Coinone
-- secrets are never echoed in CLI output, examples, or normalized JSON
-- prefer shell env vars or a local secret manager; do not put secrets directly in command history
-- `coinone orders place` requires either `--dry-run` or `--confirm live`
-- `coinone orders cancel` is live-only and always requires `--confirm live`
-- run a dry run before any live order placement whenever possible
-- when working inside the repo, prefer `npm run cli -- <command>` or `node dist/bin/coinone.js <command>`; do not run `node src/bin/coinone.ts` directly with plain Node
+- `coinone doctor`는 로컬 설치와 환경만 진단하며 MVP 기준 네트워크가 필요하지 않습니다
+- `coinone auth status`는 로컬 환경 변수만 검증하며 Coinone API를 호출하지 않습니다
+- 비밀값은 CLI 출력, 예시, 정규화된 JSON에 그대로 노출되지 않습니다
+- 비밀값은 셸 환경 변수나 로컬 시크릿 매니저에 저장하고, 명령 히스토리에 직접 남기지 마세요
+- `coinone orders place`는 `--dry-run` 또는 `--confirm live` 중 하나가 반드시 필요합니다
+- `coinone orders cancel`은 live 전용이며 항상 `--confirm live`가 필요합니다
+- 가능하면 모든 실주문 전에 dry run을 먼저 실행하세요
+- 저장소 내부에서는 `npm run cli -- <command>` 또는 `node dist/bin/coinone.js <command>`를 사용하고, plain Node로 `src/bin/coinone.ts`를 직접 실행하지 마세요
 
-## Fee permission note
+## 수수료 권한 안내
 
-- `coinone fees list` and `coinone fees get` use Coinone private API permissions under **고객 정보**
-- if your API key does not include that permission, Coinone returns `Invalid API permission` with error code `40`
-- table output shows fee rates as percentages for humans, so a raw API value like `"0.0"` is displayed as `0%`
-- `--json` keeps the normalized raw string values for scripting, for example `"makerFeeRate": "0.0"`
+- `coinone fees list`와 `coinone fees get`는 Coinone 개인 API의 **고객 정보** 권한을 사용합니다
+- API 키에 해당 권한이 없으면 Coinone은 `Invalid API permission`과 error code `40`을 반환합니다
+- 표 출력은 사람이 읽기 좋게 수수료를 퍼센트로 보여주므로, 원시 값 `"0.0"`은 `0%`로 표시됩니다
+- `--json` 출력은 스크립트용 원시 문자열 값을 유지하며, 예를 들어 `"makerFeeRate": "0.0"` 형태를 보존합니다
 
-## Zero-fee response flow
+## 0% 수수료 응답 흐름
 
 ```mermaid
 flowchart TD
-  A[coinone fees get --quote krw --target usdc] --> B[Coinone private fee API]
-  B --> C[raw response fee_rates maker=0.0 taker=0.0]
-  C --> D[table output shows 0%]
-  C --> E[json output keeps 0.0 strings]
+  A[coinone fees get --quote krw --target usdc] --> B[Coinone 개인 수수료 API]
+  B --> C[raw 응답 fee_rates maker=0.0 taker=0.0]
+  C --> D[표 출력에서는 0%로 표시]
+  C --> E[json 출력에서는 0.0 문자열 유지]
 ```
