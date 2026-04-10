@@ -1,10 +1,12 @@
-# Install
+# 설치
 
-## Requirements
+코인원 사용자 기준으로는 빠르게 설치해서 `coinone --help`와 `coinone doctor`를 먼저 확인하는 흐름이 가장 안전합니다.
+
+## 요구 사항
 
 - Node.js 20.10+
 
-## Install from npm (recommended)
+## npm으로 설치하기 (권장)
 
 ```bash
 npm install -g coinone-api-cli
@@ -12,7 +14,7 @@ coinone --help
 coinone doctor --json
 ```
 
-## Install with Homebrew (macOS)
+## Homebrew로 설치하기 (macOS)
 
 ```bash
 brew tap 2sem/tap
@@ -21,9 +23,9 @@ coinone --help
 coinone doctor --json
 ```
 
-## Install directly from Git
+## Git 저장소에서 바로 설치하기
 
-Use this when you want the latest repository state instead of the npm package.
+npm 배포본 대신 저장소 최신 상태를 바로 설치하고 싶을 때 사용합니다.
 
 ```bash
 npm install -g git+https://github.com/2sem/coinone-api-cli.git
@@ -31,9 +33,9 @@ coinone --help
 coinone doctor --json
 ```
 
-Git-based installs ship with the built `dist/` output in the repository, so you do not need to run TypeScript build steps first.
+Git 기반 설치는 저장소 안의 `dist/` 산출물을 함께 사용하므로, 먼저 TypeScript 빌드를 할 필요가 없습니다.
 
-## Local development install
+## 로컬 개발용 설치
 
 ```bash
 npm install
@@ -41,7 +43,7 @@ npm run build
 npm run cli -- --help
 ```
 
-## Global install from a local checkout
+## 로컬 체크아웃을 전역 설치로 올리기
 
 ```bash
 npm install
@@ -51,7 +53,7 @@ coinone --help
 coinone doctor
 ```
 
-## Smoke test before sharing
+## 배포 전 스모크 테스트
 
 ```bash
 npm test
@@ -60,28 +62,28 @@ npm run docs:build
 npm pack --dry-run
 ```
 
-## Update
+## 업데이트
 
-### npm install
+### npm 설치 사용자
 
 ```bash
 npm install -g coinone-api-cli
 ```
 
-### Homebrew
+### Homebrew 사용자
 
 ```bash
 brew update
 brew upgrade coinone
 ```
 
-### Git install
+### Git 설치 사용자
 
 ```bash
 npm install -g git+https://github.com/2sem/coinone-api-cli.git
 ```
 
-### Local clone
+### 로컬 클론 사용자
 
 ```bash
 git pull
@@ -90,7 +92,7 @@ npm run build
 npm install -g .
 ```
 
-### Check installed version
+### 설치 버전 확인
 
 ```bash
 coinone --version
