@@ -24,6 +24,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "cli": "tsx src/bin/coinone.ts",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -44,6 +47,7 @@
     "@types/node": "^24.6.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
+    "vitepress": "^1.6.4",
     "vitest": "^3.2.4"
   }
 }
