@@ -28,5 +28,8 @@ jobs:
       - name: Build package
         run: npm run build
 
+      - name: Build docs site
+        run: npm run docs:build
+
       - name: Verify publish contents
         run: npm pack --dry-run

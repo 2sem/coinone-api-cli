@@ -1,0 +1,28 @@
+# Development
+
+## Local workflows
+
+```bash
+npm install
+npm test
+npm run build
+npm run docs:build
+npm pack --dry-run
+```
+
+## Architecture
+
+- `src/cli.ts`: root command tree and global options
+- `src/commands/`: command modules per resource
+- `src/lib/client.ts`: shared Coinone public/private API client using native `fetch`
+- `src/lib/auth.ts`: env validation and Coinone v2.1 request signing
+- `src/lib/output.ts`: output mode resolution and rendering
+- `src/lib/errors.ts`: normalized CLI and API error handling
+- `src/lib/formatters.ts`: table and summary formatting helpers
+- `src/lib/time.ts`: timestamp parsing and completed-order window validation
+
+## Docs publishing
+
+- GitHub Pages deploys from `.github/workflows/deploy-pages.yml`
+- local docs output is built into `docs/.vitepress/dist`
+- the VitePress base path is configured for the repository site at `/coinone-api-cli/`
