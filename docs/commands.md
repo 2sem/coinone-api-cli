@@ -1,5 +1,7 @@
 # Commands
 
+For the source-of-truth command documentation, see the generated [Command Reference](./command-reference).
+
 ## Global options
 
 - `--json`: emit normalized JSON for scripts and agents

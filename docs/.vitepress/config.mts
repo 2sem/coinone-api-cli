@@ -11,7 +11,7 @@ export default defineConfig({
     logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/' },
-      { text: 'Commands', link: '/commands' },
+      { text: 'Commands', link: '/command-reference' },
       { text: 'GitHub', link: 'https://github.com/2sem/coinone-api-cli' }
     ],
     sidebar: [
@@ -22,6 +22,7 @@ export default defineConfig({
           { text: 'Install', link: '/install' },
           { text: 'Quickstart', link: '/quickstart' },
           { text: 'Commands', link: '/commands' },
+          { text: 'Command Reference', link: '/command-reference' },
           { text: 'Auth and Safety', link: '/auth-and-safety' },
           { text: 'Output and Automation', link: '/output-and-automation' },
           { text: 'Troubleshooting', link: '/troubleshooting' },

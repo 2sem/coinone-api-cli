@@ -24,8 +24,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "cli": "tsx src/bin/coinone.ts",
-    "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
+    "docs:generate-reference": "node --import tsx ./scripts/generate-command-reference.mts",
+    "docs:dev": "npm run docs:generate-reference && vitepress dev docs",
+    "docs:build": "npm run docs:generate-reference && vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "test": "vitest run",
     "test:watch": "vitest"
