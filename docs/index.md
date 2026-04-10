@@ -11,7 +11,7 @@ hero:
       link: /install
     - theme: alt
       text: Command reference
-      link: /commands
+      link: /command-reference
 
 features:
   - title: Script-friendly
@@ -45,7 +45,8 @@ flowchart TD
 
 - [Install](./install): npm, Homebrew, Git install, and local development paths
 - [Quickstart](./quickstart): copy-paste command examples for common tasks
-- [Commands](./commands): concise reference for every command group
+- [Commands](./commands): quick command overview and notable behavior
+- [Command Reference](./command-reference): generated from the live CLI command tree
 - [Auth and Safety](./auth-and-safety): environment setup, signing behavior, and live-order safeguards
 - [Output and Automation](./output-and-automation): `--json`, `--output raw`, timeouts, and shell scripting patterns
 - [Troubleshooting](./troubleshooting): install, PATH, auth, and command validation tips
