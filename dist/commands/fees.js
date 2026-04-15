@@ -64,15 +64,26 @@ function formatFeeRateDisplay(value) {
     if (value === undefined) {
         return undefined;
     }
-    const rate = Number(value);
-    if (!Number.isFinite(rate)) {
+    const trimmed = value.trim();
+    if (!/^\d+(?:\.\d+)?$/.test(trimmed)) {
         return value;
     }
-    const percent = rate * 100;
-    if (percent === 0) {
+    const [integerPart, fractionPart = ''] = trimmed.split('.');
+    const digits = `${integerPart}${fractionPart}`.replace(/^0+(?=\d)/, '') || '0';
+    const scale = fractionPart.length;
+    const percentScale = Math.max(scale - 2, 0);
+    const scaledDigits = scale >= 2 ? digits : `${digits}${'0'.repeat(2 - scale)}`;
+    const normalizedDigits = scaledDigits.replace(/^0+(?=\d)/, '') || '0';
+    if (normalizedDigits === '0') {
         return '0%';
     }
-    return `${percent.toFixed(4).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`;
+    if (percentScale === 0) {
+        return `${normalizedDigits}%`;
+    }
+    const paddedDigits = normalizedDigits.padStart(percentScale + 1, '0');
+    const wholePart = paddedDigits.slice(0, -percentScale) || '0';
+    const decimalPart = paddedDigits.slice(-percentScale).replace(/0+$/, '');
+    return `${wholePart}${decimalPart ? `.${decimalPart}` : ''}%`;
 }
 function normalizeFeeEntries(response) {
     const fees = response.fees ?? response.fee_rates;

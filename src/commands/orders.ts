@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Command } from 'commander';
 
 import type { CoinoneClient } from '../lib/client.js';
@@ -16,7 +18,8 @@ import type {
   Market,
   OrderDetailEntry,
   OrderDetailResponse,
-  PlaceOrderResponse
+  PlaceOrderResponse,
+  RangeUnit
 } from '../lib/types.js';
 
 function collectValues(value: string, previous: string[]): string[] {
@@ -182,6 +185,45 @@ function validateMaxDecimal(value: ParsedDecimal, maximum: string, label: string
   }
 }
 
+function validateStepDecimal(
+  value: ParsedDecimal,
+  step: string,
+  label: string,
+  pair: string,
+  hintLabel = label
+): void {
+  const stepValue = parseDecimal(step, label);
+
+  if (stepValue.units === 0n) {
+    return;
+  }
+
+  const scale = Math.max(value.scale, stepValue.scale);
+  const valueUnits = value.units * 10n ** BigInt(scale - value.scale);
+  const stepUnits = stepValue.units * 10n ** BigInt(scale - stepValue.scale);
+
+  if (valueUnits % stepUnits !== 0n) {
+    throw new CoinoneCliError(`Order ${label} does not match the allowed increment for ${pair}.`, {
+      causeHint: `Use --${hintLabel} in multiples of ${formatDecimal(stepValue)}.`
+    });
+  }
+}
+
+function resolveRangeUnitForPrice(price: ParsedDecimal, rangeUnits: RangeUnit[]): string | undefined {
+  for (const rangeUnit of rangeUnits) {
+    const rangeMin = parseDecimal(String(rangeUnit.range_min), 'price');
+    const nextRangeMin = parseDecimal(String(rangeUnit.next_range_min), 'price');
+    const inLowerBound = compareDecimals(price, rangeMin) >= 0;
+    const inUpperBound = nextRangeMin.units === 0n || compareDecimals(price, nextRangeMin) < 0;
+
+    if (inLowerBound && inUpperBound) {
+      return String(rangeUnit.price_unit);
+    }
+  }
+
+  return undefined;
+}
+
 function validatePlaceOrderAgainstMarket(order: PlaceOrderRequest, market: Market): void {
   const pair = marketPair(toCode(order.targetCurrency), toCode(order.quoteCurrency));
   const price = parseDecimal(order.price, 'price');
@@ -221,6 +263,7 @@ function validatePlaceOrderAgainstMarket(order: PlaceOrderRequest, market: Marke
   validateMaxDecimal(price, market.max_price, 'price', pair);
   validateMinDecimal(qty, market.min_qty, 'qty', pair);
   validateMaxDecimal(qty, market.max_qty, 'qty', pair);
+  validateStepDecimal(qty, market.qty_unit, 'qty', pair);
 
   const notional = multiplyDecimals(price, qty);
   const minimumOrderAmount = parseDecimal(market.min_order_amount, 'min order amount');
@@ -230,6 +273,20 @@ function validatePlaceOrderAgainstMarket(order: PlaceOrderRequest, market: Marke
       causeHint: `price * qty = ${formatDecimal(notional)}, but Coinone requires at least ${formatDecimal(minimumOrderAmount)}.`
     });
   }
+}
+
+function validatePlaceOrderAgainstRangeUnits(order: PlaceOrderRequest, rangeUnits: RangeUnit[]): void {
+  const pair = marketPair(toCode(order.targetCurrency), toCode(order.quoteCurrency));
+  const price = parseDecimal(order.price, 'price');
+  const priceUnit = resolveRangeUnitForPrice(price, rangeUnits);
+
+  if (!priceUnit) {
+    throw new CoinoneCliError(`Coinone returned no price unit for ${pair} at the requested price.`, {
+      causeHint: 'Retry after refreshing market metadata or choose a price within the supported range.'
+    });
+  }
+
+  validateStepDecimal(price, priceUnit, 'price', pair);
 }
 
 function validatePlaceSafetyMode(options: { dryRun?: boolean; confirm?: string }): { dryRun: boolean } {
@@ -360,6 +417,7 @@ export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResul
     .requiredOption('--qty <string>', 'Order quantity as a decimal string')
     .option('--post-only', 'Submit the order as post-only')
     .option('--user-order-id <id>', 'Optional user-provided order id')
+    .option('--auto-user-order-id', 'Generate a UUID-based user order id when one is not provided')
     .option('--dry-run', 'Validate locally only; do not call Coinone')
     .option('--confirm <mode>', 'Required for live submission; use `live`')
     .description('Place a guarded private limit order')
@@ -370,6 +428,7 @@ export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResul
         'Safety:',
         '  Use `--dry-run` to validate locally without a network request.',
         '  Use `--confirm live` for real submission.',
+        '  Consider `--auto-user-order-id` for safer live retries and reconciliation.',
         '',
         'Examples:',
         '  coinone orders place --quote krw --target btc --side buy --type limit --price 1000 --qty 0.01 --dry-run',
@@ -386,6 +445,7 @@ export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResul
       qty: string;
       postOnly?: boolean;
       userOrderId?: string;
+      autoUserOrderId?: boolean;
       dryRun?: boolean;
       confirm?: string;
     }) {
@@ -400,12 +460,17 @@ export function createOrdersCommand(client: CoinoneClient, emitResult: EmitResul
         price: options.price,
         qty: options.qty,
         postOnly: Boolean(options.postOnly),
-        userOrderId: options.userOrderId
+        userOrderId: resolveUserOrderId(options)
       };
       const marketResponse = await client.getMarket(orderRequest.quoteCurrency, orderRequest.targetCurrency);
       const market = expectPlaceOrderMarket(marketResponse.markets, orderRequest);
+      const rangeUnitResponse = await client.getRangeUnits(
+        orderRequest.quoteCurrency,
+        orderRequest.targetCurrency
+      );
 
       validatePlaceOrderAgainstMarket(orderRequest, market);
+      validatePlaceOrderAgainstRangeUnits(orderRequest, rangeUnitResponse.range_price_units);
 
       if (dryRun) {
         const result = buildPlaceOrderDryRunResult(orderRequest);
@@ -571,6 +636,21 @@ interface PlaceOrderRequest {
   qty: string;
   postOnly: boolean;
   userOrderId?: string;
+}
+
+function resolveUserOrderId(options: {
+  userOrderId?: string;
+  autoUserOrderId?: boolean;
+}): string | undefined {
+  if (options.userOrderId) {
+    return options.userOrderId;
+  }
+
+  if (options.autoUserOrderId) {
+    return `coinone-cli-${randomUUID()}`;
+  }
+
+  return undefined;
 }
 
 interface CancelOrderRequest {

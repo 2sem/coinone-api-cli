@@ -24,6 +24,12 @@ export interface FetchLike {
   (input: string | URL | Request, init?: RequestInit): Promise<Response>;
 }
 
+const DEFAULT_SAFE_READ_RETRY_DELAY_MS = 250;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function buildUrl(
   baseUrl: string,
   path: string,
@@ -111,33 +117,81 @@ function buildRequestSignal(
   return AbortSignal.any([signal, timeoutSignal]);
 }
 
+function isSafeRetryableRequest(method: string | undefined): boolean {
+  const normalized = method?.toUpperCase() ?? 'GET';
+  return normalized === 'GET' || normalized === 'HEAD';
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+function parseRetryAfterMs(headers: Headers): number | undefined {
+  const retryAfter = headers.get('retry-after');
+
+  if (!retryAfter) {
+    return undefined;
+  }
+
+  const seconds = Number(retryAfter);
+
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return seconds * 1000;
+  }
+
+  const retryAt = Date.parse(retryAfter);
+
+  if (Number.isNaN(retryAt)) {
+    return undefined;
+  }
+
+  return Math.max(retryAt - Date.now(), 0);
+}
+
+function getRetryDelayMs(attempt: number, headers?: Headers): number {
+  const headerDelay = headers ? parseRetryAfterMs(headers) : undefined;
+
+  if (headerDelay !== undefined) {
+    return headerDelay;
+  }
+
+  return DEFAULT_SAFE_READ_RETRY_DELAY_MS * 2 ** attempt;
+}
+
 export class CoinoneClient {
   private baseUrl: string;
   private timeoutMs: number | undefined;
+  private maxRetries: number;
   private readonly env: PrivateAuthEnv;
   private readonly fetchImplementation: FetchLike;
 
   constructor(
-    options: {
-      baseUrl?: string;
-      timeoutMs?: number;
-      env?: PrivateAuthEnv;
-      fetchImplementation?: FetchLike;
-    } = {}
+      options: {
+        baseUrl?: string;
+        timeoutMs?: number;
+        maxRetries?: number;
+        env?: PrivateAuthEnv;
+        fetchImplementation?: FetchLike;
+      } = {}
   ) {
     this.baseUrl = options.baseUrl ?? 'https://api.coinone.co.kr';
     this.timeoutMs = options.timeoutMs;
+    this.maxRetries = options.maxRetries ?? 0;
     this.env = options.env ?? process.env;
     this.fetchImplementation = options.fetchImplementation ?? fetch;
   }
 
-  setRuntimeOptions(options: { baseUrl?: string; timeoutMs?: number }): void {
+  setRuntimeOptions(options: { baseUrl?: string; timeoutMs?: number; maxRetries?: number }): void {
     if (options.baseUrl !== undefined) {
       this.baseUrl = options.baseUrl;
     }
 
     if (options.timeoutMs !== undefined) {
       this.timeoutMs = options.timeoutMs;
+    }
+
+    if (options.maxRetries !== undefined) {
+      this.maxRetries = options.maxRetries;
     }
   }
 
@@ -340,40 +394,54 @@ export class CoinoneClient {
     url: string,
     init: RequestInit
   ): Promise<TResponse> {
-    const signal = buildRequestSignal(init.signal, this.timeoutMs);
-    const requestInit = signal ? { ...init, signal } : init;
+    const safeRetryable = isSafeRetryableRequest(init.method);
 
-    let response: Response;
-    try {
-      response = await this.fetchImplementation(url, requestInit);
-    } catch (error) {
-      throw normalizeNetworkFailure(error, this.timeoutMs);
-    }
+    for (let attempt = 0; ; attempt += 1) {
+      const signal = buildRequestSignal(init.signal, this.timeoutMs);
+      const requestInit = signal ? { ...init, signal } : init;
 
-    const rawBody = await response.text();
-    let payload: TResponse | undefined;
-
-    if (rawBody.length > 0) {
+      let response: Response;
       try {
-        payload = JSON.parse(rawBody) as TResponse;
-      } catch {
-        throw new CoinoneCliError('Coinone API returned invalid JSON.', {
-          status: response.status,
-          details: rawBody.slice(0, 300)
+        response = await this.fetchImplementation(url, requestInit);
+      } catch (error) {
+        if (safeRetryable && attempt < this.maxRetries) {
+          await sleep(getRetryDelayMs(attempt));
+          continue;
+        }
+
+        throw normalizeNetworkFailure(error, this.timeoutMs);
+      }
+
+      const rawBody = await response.text();
+      let payload: TResponse | undefined;
+
+      if (rawBody.length > 0) {
+        try {
+          payload = JSON.parse(rawBody) as TResponse;
+        } catch {
+          throw new CoinoneCliError('Coinone API returned invalid JSON.', {
+            status: response.status,
+            details: rawBody.slice(0, 300)
+          });
+        }
+      }
+
+      if (!response.ok || (payload?.result && payload.result !== 'success')) {
+        if (safeRetryable && attempt < this.maxRetries && isRetryableStatus(response.status)) {
+          await sleep(getRetryDelayMs(attempt, response.headers));
+          continue;
+        }
+
+        throw normalizeApiFailure(response, payload, rawBody);
+      }
+
+      if (!payload) {
+        throw new CoinoneCliError('Coinone API returned an empty response.', {
+          status: response.status
         });
       }
-    }
 
-    if (!response.ok || (payload?.result && payload.result !== 'success')) {
-      throw normalizeApiFailure(response, payload, rawBody);
+      return payload;
     }
-
-    if (!payload) {
-      throw new CoinoneCliError('Coinone API returned an empty response.', {
-        status: response.status
-      });
-    }
-
-    return payload;
   }
 }

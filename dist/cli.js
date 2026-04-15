@@ -34,6 +34,13 @@ function parseTimeoutOption(value) {
     }
     return timeoutMs;
 }
+function parseMaxRetriesOption(value) {
+    const retries = Number(value);
+    if (!Number.isInteger(retries) || retries < 0 || retries > 5) {
+        throw new InvalidArgumentError('Max retries must be a whole number between 0 and 5.');
+    }
+    return retries;
+}
 function readGlobalOptions(command) {
     return command.optsWithGlobals();
 }
@@ -63,6 +70,7 @@ export function createCli(dependencies = {}) {
         .option('--color', 'Force color output when printing errors')
         .option('--base-url <url>', 'Override the Coinone API base URL', parseBaseUrlOption)
         .option('--timeout <ms>', 'Set request timeout in milliseconds', parseTimeoutOption)
+        .option('--max-retries <n>', 'Retry safe read requests on 429/5xx responses (0-5)', parseMaxRetriesOption, 0)
         .addHelpText('after', [
         '',
         'Examples:',
@@ -94,7 +102,8 @@ export function createCli(dependencies = {}) {
         const options = readGlobalOptions(actionCommand);
         client.setRuntimeOptions({
             baseUrl: options.baseUrl,
-            timeoutMs: options.timeout
+            timeoutMs: options.timeout,
+            maxRetries: options.maxRetries
         });
     })
         .exitOverride();

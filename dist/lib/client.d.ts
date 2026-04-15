@@ -6,17 +6,20 @@ export declare function buildUrl(baseUrl: string, path: string, query?: Record<s
 export declare class CoinoneClient {
     private baseUrl;
     private timeoutMs;
+    private maxRetries;
     private readonly env;
     private readonly fetchImplementation;
     constructor(options?: {
         baseUrl?: string;
         timeoutMs?: number;
+        maxRetries?: number;
         env?: PrivateAuthEnv;
         fetchImplementation?: FetchLike;
     });
     setRuntimeOptions(options: {
         baseUrl?: string;
         timeoutMs?: number;
+        maxRetries?: number;
     }): void;
     listMarkets(quoteCurrency: string): Promise<MarketsResponse>;
     getMarket(quoteCurrency: string, targetCurrency: string): Promise<MarketsResponse>;
