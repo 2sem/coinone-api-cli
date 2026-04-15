@@ -405,4 +405,74 @@ describe('CoinoneClient', () => {
       access_token: 'access-token'
     });
   });
+
+  it('retries safe read requests on rate limit responses when maxRetries is configured', async () => {
+    const calls: string[] = [];
+    let attempt = 0;
+    const client = new CoinoneClient({
+      maxRetries: 1,
+      fetchImplementation: async (input) => {
+        calls.push(String(input));
+        attempt += 1;
+
+        if (attempt === 1) {
+          return new Response(
+            JSON.stringify({
+              result: 'error',
+              error_code: '429',
+              error_msg: 'too many requests'
+            }),
+            {
+              status: 429,
+              headers: {
+                'content-type': 'application/json',
+                'retry-after': '0'
+              }
+            }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            result: 'success',
+            error_code: '0',
+            server_time: 1,
+            tickers: []
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+    });
+
+    await expect(client.getTicker('krw', 'btc')).resolves.toMatchObject({ result: 'success' });
+    expect(calls).toEqual([
+      'https://api.coinone.co.kr/public/v2/ticker_new/krw/btc',
+      'https://api.coinone.co.kr/public/v2/ticker_new/krw/btc'
+    ]);
+  });
+
+  it('does not retry private POST requests even when maxRetries is configured', async () => {
+    let attempt = 0;
+    const client = new CoinoneClient({
+      maxRetries: 2,
+      env: {
+        COINONE_ACCESS_TOKEN: 'access-token',
+        COINONE_SECRET_KEY: 'secret-key'
+      },
+      fetchImplementation: async () => {
+        attempt += 1;
+        return new Response(
+          JSON.stringify({
+            result: 'error',
+            error_code: '429',
+            error_msg: 'too many requests'
+          }),
+          { status: 429, headers: { 'content-type': 'application/json', 'retry-after': '0' } }
+        );
+      }
+    });
+
+    await expect(client.listBalances()).rejects.toBeInstanceOf(CoinoneCliError);
+    expect(attempt).toBe(1);
+  });
 });

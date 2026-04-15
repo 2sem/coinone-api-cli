@@ -461,7 +461,7 @@ describe('runCli', () => {
       {
         stdout,
         stderr,
-        fetchImplementation: async (input) => {
+        fetchImplementation: async (input, init) => {
           const url = String(input);
           fetchCalls.push(url);
 
@@ -493,6 +493,23 @@ describe('runCli', () => {
             );
           }
 
+          if (url.endsWith('/public/v2/range_units/krw/usdc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                range_price_units: [
+                  {
+                    range_min: 0,
+                    next_range_min: 0,
+                    price_unit: 1
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
           throw new Error('should not be called');
         }
       }
@@ -500,7 +517,10 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(stdout.read()).toBe('');
-    expect(fetchCalls).toEqual(['https://api.coinone.co.kr/public/v2/markets/krw/usdc']);
+    expect(fetchCalls).toEqual([
+      'https://api.coinone.co.kr/public/v2/markets/krw/usdc',
+      'https://api.coinone.co.kr/public/v2/range_units/krw/usdc'
+    ]);
     expect(stderr.read()).toContain('Order notional is below the market minimum for USDC/KRW');
     expect(stderr.read()).toContain('price * qty = 1519');
     expect(stderr.read()).toContain('at least 5000');
@@ -535,7 +555,7 @@ describe('runCli', () => {
       {
         stdout,
         stderr,
-        fetchImplementation: async (input) => {
+        fetchImplementation: async (input, init) => {
           const url = String(input);
           fetchCalls.push(url);
 
@@ -567,13 +587,38 @@ describe('runCli', () => {
             );
           }
 
+          if (url.endsWith('/public/v2/range_units/krw/btc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                range_price_units: [
+                  {
+                    range_min: 0,
+                    next_range_min: 10000,
+                    price_unit: 1
+                  },
+                  {
+                    range_min: 10000,
+                    next_range_min: 0,
+                    price_unit: 10
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
           throw new Error('should not be called');
         }
       }
     );
 
     expect(exitCode).toBe(0);
-    expect(fetchCalls).toEqual(['https://api.coinone.co.kr/public/v2/markets/krw/btc']);
+    expect(fetchCalls).toEqual([
+      'https://api.coinone.co.kr/public/v2/markets/krw/btc',
+      'https://api.coinone.co.kr/public/v2/range_units/krw/btc'
+    ]);
     expect(stderr.read()).toBe('');
     expect(stdout.read()).toContain('"action": "place"');
     expect(stdout.read()).toContain('"dryRun": true');
@@ -614,7 +659,7 @@ describe('runCli', () => {
         },
         stdout,
         stderr,
-        fetchImplementation: async (input) => {
+        fetchImplementation: async (input, init) => {
           const url = String(input);
           fetchCalls.push(url);
 
@@ -646,6 +691,23 @@ describe('runCli', () => {
             );
           }
 
+          if (url.endsWith('/public/v2/range_units/krw/usdc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                range_price_units: [
+                  {
+                    range_min: 0,
+                    next_range_min: 0,
+                    price_unit: 1
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
           if (url.endsWith('/v2.1/order')) {
             throw new Error('private submit should not be called');
           }
@@ -657,7 +719,10 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(stdout.read()).toBe('');
-    expect(fetchCalls).toEqual(['https://api.coinone.co.kr/public/v2/markets/krw/usdc']);
+    expect(fetchCalls).toEqual([
+      'https://api.coinone.co.kr/public/v2/markets/krw/usdc',
+      'https://api.coinone.co.kr/public/v2/range_units/krw/usdc'
+    ]);
     expect(stderr.read()).toContain('Order notional is below the market minimum for USDC/KRW');
     expect(stderr.read()).toContain('price * qty = 1519');
   });
@@ -837,6 +902,7 @@ describe('runCli', () => {
         '--qty',
         '5',
         '--post-only',
+        '--auto-user-order-id',
         '--confirm',
         'live'
       ],
@@ -847,7 +913,7 @@ describe('runCli', () => {
         },
         stdout,
         stderr,
-        fetchImplementation: async (input) => {
+        fetchImplementation: async (input, init) => {
           const url = String(input);
 
           if (url.endsWith('/public/v2/markets/krw/btc')) {
@@ -878,7 +944,32 @@ describe('runCli', () => {
             );
           }
 
+          if (url.endsWith('/public/v2/range_units/krw/btc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                range_price_units: [
+                  {
+                    range_min: 0,
+                    next_range_min: 10000,
+                    price_unit: 1
+                  },
+                  {
+                    range_min: 10000,
+                    next_range_min: 0,
+                    price_unit: 10
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
           if (url.endsWith('/v2.1/order')) {
+            expect(JSON.parse(String(init?.body))).toMatchObject({
+              user_order_id: expect.any(String)
+            });
             return new Response(
               JSON.stringify({
                 result: 'success',
@@ -891,7 +982,7 @@ describe('runCli', () => {
                 price: '1000',
                 qty: '5',
                 post_only: true,
-                user_order_id: 'client-1',
+                user_order_id: 'coinone-cli-test-id',
                 submitted_at: 1767225600000
               }),
               { status: 200, headers: { 'content-type': 'application/json' } }
@@ -909,7 +1000,163 @@ describe('runCli', () => {
     expect(stdout.read()).toContain('"submitted": true');
     expect(stdout.read()).toContain('"orderId": "new-order-1"');
     expect(stdout.read()).toContain('"postOnly": true');
+    expect(stdout.read()).toContain('"userOrderId": "coinone-cli-test-id"');
     expect(stdout.read()).toContain('"submittedAt": "2026-01-01T00:00:00.000Z"');
+  });
+
+  it('rejects order prices that do not match Coinone price units', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+
+    const exitCode = await runCli(
+      [
+        'node',
+        'coinone',
+        'orders',
+        'place',
+        '--quote',
+        'krw',
+        '--target',
+        'btc',
+        '--side',
+        'buy',
+        '--type',
+        'limit',
+        '--price',
+        '10005',
+        '--qty',
+        '5',
+        '--dry-run'
+      ],
+      {
+        stdout,
+        stderr,
+        fetchImplementation: async (input) => {
+          const url = String(input);
+
+          if (url.endsWith('/public/v2/markets/krw/btc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                server_time: 1,
+                markets: [
+                  {
+                    quote_currency: 'krw',
+                    target_currency: 'btc',
+                    qty_unit: '0.0001',
+                    max_order_amount: '1000000000',
+                    max_price: '100000000',
+                    max_qty: '1000000',
+                    min_order_amount: '5000',
+                    min_price: '1',
+                    min_qty: '0.0001',
+                    order_book_units: ['1'],
+                    maintenance_status: 0,
+                    trade_status: 1,
+                    order_types: ['limit']
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
+          if (url.endsWith('/public/v2/range_units/krw/btc')) {
+            return new Response(
+              JSON.stringify({
+                result: 'success',
+                error_code: '0',
+                range_price_units: [
+                  {
+                    range_min: 0,
+                    next_range_min: 10000,
+                    price_unit: 1
+                  },
+                  {
+                    range_min: 10000,
+                    next_range_min: 0,
+                    price_unit: 10
+                  }
+                ]
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+          }
+
+          throw new Error('unexpected request');
+        }
+      }
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.read()).toBe('');
+    expect(stderr.read()).toContain('Order price does not match the allowed increment for BTC/KRW');
+    expect(stderr.read()).toContain('Use --price in multiples of 10');
+  });
+
+  it('retries safe reads when --max-retries is set', async () => {
+    const stdout = createWritable();
+    const stderr = createWritable();
+    let attempt = 0;
+
+    const exitCode = await runCli(
+      ['node', 'coinone', '--json', '--max-retries', '1', 'ticker', 'get', 'btc', '--quote', 'krw'],
+      {
+        stdout,
+        stderr,
+        fetchImplementation: async () => {
+          attempt += 1;
+
+          if (attempt === 1) {
+            return new Response(
+              JSON.stringify({
+                result: 'error',
+                error_code: '429',
+                error_msg: 'too many requests'
+              }),
+              {
+                status: 429,
+                headers: {
+                  'content-type': 'application/json',
+                  'retry-after': '0'
+                }
+              }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({
+              result: 'success',
+              error_code: '0',
+              server_time: 1,
+              tickers: [
+                {
+                  quote_currency: 'krw',
+                  target_currency: 'btc',
+                  timestamp: 1,
+                  high: '110',
+                  low: '90',
+                  first: '100',
+                  last: '105',
+                  quote_volume: '1000',
+                  target_volume: '10',
+                  best_asks: [{ price: '106', qty: '1' }],
+                  best_bids: [{ price: '104', qty: '2' }],
+                  id: 'abc'
+                }
+              ]
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          );
+        }
+      }
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr.read()).toBe('');
+    expect(attempt).toBe(2);
+    expect(stdout.read()).toContain('"pair": "BTC/KRW"');
   });
 
   it('prints successful live order cancellation in json mode', async () => {

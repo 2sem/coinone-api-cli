@@ -277,6 +277,7 @@ export interface OutputOptions {
 export interface GlobalCliOptions extends OutputOptions {
     baseUrl?: string;
     timeout?: number;
+    maxRetries?: number;
 }
 export interface CommandResult<TNormalized> {
     data: TNormalized;
